@@ -1,9 +1,13 @@
-const functions = require("firebase-functions");
 const express = require("express");
 const app = express();
 
+const PORT = process.env.PORT || 8080;
+
 app.get("/", (req, res) => {
-  res.send("WeeLend backend is running successfully!");
+  res.send("WeeLend backend is running successfully on Cloud Run!");
 });
 
-exports.api = functions.https.onRequest(app);
+app.listen(PORT, () => {
+  console.log(`Server started on port ${PORT}`);
+});
+
