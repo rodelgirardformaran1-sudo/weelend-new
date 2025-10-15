@@ -1,0 +1,10 @@
+{
+  "name": "weelend-new",
+  "version": "1.0.0",
+  "description": "Weelend app",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {}
+}
