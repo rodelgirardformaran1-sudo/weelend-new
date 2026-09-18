@@ -1,0 +1,249 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================
+    // 🔐 HELPERS
+    // =========================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function loanOwner(loanId) {
+      return request.auth.uid ==
+        get(/databases/$(database)/documents/activeLoans/$(loanId)).data.userId;
+    }
+
+    function loanGuarantor(loanId) {
+      return request.auth.uid ==
+        get(/databases/$(database)/documents/activeLoans/$(loanId)).data.guarantorId;
+    }
+
+    // =========================
+    // 👥 USERS
+    // =========================
+		match /users/{userId} {
+
+  // ✅ Any signed-in user can read profiles
+  allow get, list: if isSignedIn();
+
+  // ✅ User can create only their own profile doc
+  allow create: if isSelf(userId);
+
+  // ✅ Admin can update anything
+  allow update: if isAdmin();
+
+  // ✅ User can update ONLY safe profile fields (NOT commitments)
+  allow update: if isSelf(userId)
+    && request.resource.data.diff(resource.data).changedKeys()
+      .hasOnly(["contactNumber", "address", "profileImageUrl", "theme"]);
+
+  // ❌ Never allow delete
+  allow delete: if false;
+}
+
+    // =========================
+    // 📝 LOAN REQUESTS
+    // =========================
+    match /loanRequests/{loanRequestId} {
+
+      allow list, get: if isAdmin()
+        || request.auth.uid == resource.data.userId
+        || request.auth.uid == resource.data.guarantorId;
+
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.userId;
+
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // =========================
+    // 💳 ACTIVE LOANS
+    // =========================
+    match /activeLoans/{loanId} {
+
+      // ✅ REQUIRED for member history queries
+      allow list: if isAdmin() || isSignedIn();
+
+      allow get: if isAdmin() || loanOwner(loanId) || loanGuarantor(loanId);
+
+      allow create, update: if isAdmin();
+      allow delete: if false;
+
+      // -------------------------
+      // 📅 REPAYMENT SCHEDULE
+      // -------------------------
+      match /schedule/{scheduleId} {
+
+        allow list, get: if isAdmin() || loanOwner(loanId) || loanGuarantor(loanId);
+        allow create, update: if isAdmin();
+        allow delete: if false;
+      }
+
+      // -------------------------
+      // 💳 LOAN REPAYMENTS (SUBCOLLECTION)
+      // -------------------------
+      match /repayments/{paymentId} {
+
+        allow list, get: if isAdmin() || loanOwner(loanId) || loanGuarantor(loanId);
+        allow create: if isAdmin();
+        allow update, delete: if false;
+      }
+    }
+
+		// =========================
+		// 💸 PAYMENTS (GLOBAL)
+		// =========================
+		match /payments/{paymentId} {
+
+		  // ✅ signed-in users can list (filtered client-side)
+		  allow list: if isSignedIn();
+
+		  // ✅ admin OR owner can read
+		  allow get: if isAdmin()
+		    || request.auth.uid == resource.data.userId;
+
+		  // 🔐 only admin can create
+		  allow create: if isAdmin();
+
+  		// ❌ immutable
+  		allow update, delete: if false;
+		}
+
+    // =========================
+    // 📊 COOP SUMMARY
+    // =========================
+    match /coopFinancialSummary/{docId} {
+
+      allow list, get: if isSignedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+    
+    // =========================
+		// 💳 PAYMENT SETTINGS
+		// =========================
+		match /paymentSettings/{docId} {
+
+  	// ✅ Any logged-in user can READ payment methods
+		  allow list, get: if isSignedIn();
+
+	  // 🔐 Only admin can WRITE
+  		allow create, update: if isAdmin();
+
+  		allow delete: if false;
+		}
+    
+    // =========================
+		// 📜 MEMBER SHARE RECEIPTS
+		// =========================
+		match /memberShareReceipts/{receiptId} {
+
+		  // 🔐 Admin can read & write
+		  allow create, get, list: if isAdmin();
+
+		  // 👤 Member can read OWN receipts
+		  allow get, list: if isSignedIn()
+		    && request.auth.uid == resource.data.memberId;
+
+		  // ❌ No updates or deletes (receipts are immutable)
+		  allow update, delete: if false;
+		}
+
+// =========================
+// 🛍️ SHOP CONSENTS (Terms Acceptance)
+// =========================
+match /shopConsents/{userId} {
+
+  // User can read their own consent
+  allow get: if isSelf(userId);
+
+  // User can create/update their own consent doc
+  allow create, update: if isSelf(userId);
+
+  // Optional: admin can read all consents (for audit)
+  allow list: if isAdmin();
+
+  // No deletes
+  allow delete: if false;
+}
+
+// =========================
+// 🟦 PA-SWIPE PRODUCTS
+// =========================
+match /paSwipeProducts/{docId} {
+  allow get, list: if isSignedIn();
+  allow create, update, delete: if isAdmin();
+}
+
+// =========================
+// 📝 PA-SWIPE REQUESTS
+// =========================
+match /paSwipeRequests/{requestId} {
+  // owner or admin can read
+  allow get, list: if isAdmin()
+    || (isSignedIn() && request.auth.uid == resource.data.userId);
+
+  // any signed-in user can create their OWN request
+  allow create: if isSignedIn()
+    && request.auth.uid == request.resource.data.userId;
+
+  // only admin can approve/deny (update)
+  allow update: if isAdmin();
+  allow delete: if false;
+}
+
+// =========================
+// 💳 PA-SWIPE INSTALLMENTS
+// =========================
+match /paSwipeInstallments/{installmentId} {
+  allow get, list: if isAdmin()
+    || (isSignedIn() && request.auth.uid == resource.data.userId);
+
+  allow create, update: if isAdmin();
+  allow delete: if false;
+
+  match /schedule/{scheduleId} {
+    allow get, list: if isAdmin()
+      || (isSignedIn() && request.auth.uid == get(/databases/$(database)/documents/paSwipeInstallments/$(installmentId)).data.userId);
+
+    allow create, update: if isAdmin();
+    allow delete: if false;
+  }
+}
+
+// =========================
+// 🧾 PA-SWIPE CONTRACTS
+// =========================
+match /paSwipeContracts/{contractId} {
+  allow get, list: if isAdmin()
+    || (isSignedIn() && request.auth.uid == resource.data.userId);
+
+  // created only by admin (during the approval transaction)
+  allow create: if isAdmin();
+
+  // buyer can ONLY flip status to accepted/declined — nothing else
+  allow update: if isSignedIn()
+    && request.auth.uid == resource.data.userId
+    && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status", "acceptedAt"]);
+
+  allow delete: if false;
+}
+    // =========================
+    // 🚫 DEFAULT DENY
+    // =========================
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

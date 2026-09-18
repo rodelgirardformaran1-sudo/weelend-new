@@ -1,0 +1,2037 @@
+/* src/style.css */
+
+/* --- Google Fonts @import --- */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+
+/* --- Root Variables for Branding --- */
+:root {
+  /* Brand Colors */
+  --primary-dark-purple: #4B0082; /* Left side of Shield */
+  --secondary-purple: #800080;   /* Right side of Shield */
+  --accent-silver: #C0C0C0;       /* Border/Detailing */
+
+  /* Default Text/Background */
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87); /* Adjust as needed with new colors */
+  background-color: #242424; /* Base dark background, can be overridden */
+
+  /* Font Styling */
+  font-family: 'Montserrat', sans-serif; /* Applied globally */
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+    --header-height: 60px;
+  --bottom-nav-height: 64px;
+}
+
+/* =====================================================
+   🎨 THEME OVERRIDES
+   ===================================================== */
+
+/* 💜 Default Purple */
+[data-theme="purple"] {
+  --primary-dark-purple: #4B0082;
+  --secondary-purple: #800080;
+  --accent-silver: #C0C0C0;
+  background-color: #242424;
+}
+
+/* 🌸 Pink Theme */
+[data-theme="pink"] {
+  --primary-dark-purple: #c2185b;
+  --secondary-purple: #f06292;
+  --accent-silver: #ffd1dc;
+  background-color: #1a0f14;
+}
+
+/* 🌊 Navy Blue Theme */
+[data-theme="navy"] {
+  --primary-dark-purple: #0d1b2a;
+  --secondary-purple: #1b263b;
+  --accent-silver: #a9bcd0;
+  background-color: #0b1320;
+}
+
+/* 🟧 Orange Theme */
+[data-theme="orange"] {
+  --primary-dark-purple: #e65100;
+  --secondary-purple: #ff9800;
+  --accent-silver: #ffe0b2;
+  background-color: #1a1208;
+}
+
+/* 💎 Aqua Blue Theme */
+[data-theme="aqua"] {
+  --primary-dark-purple: #006064;
+  --secondary-purple: #26c6da;
+  --accent-silver: #b2ebf2;
+  background-color: #06181b;
+}
+
+/* 🖤 Black Theme */
+[data-theme="black"] {
+  --primary-dark-purple: #000000;
+  --secondary-purple: #222222;
+  --accent-silver: #777777;
+  background-color: #000000;
+}
+
+/* --- Global Elements --- */
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  /* Applying brand colors to the body background gradient */
+  background: linear-gradient(135deg, var(--secondary-purple) 0%, var(--primary-dark-purple) 100%);
+  font-family: 'Montserrat', sans-serif; /* Explicitly set font for robustness */
+}
+
+main {
+  display: block;
+  width: 100%;
+  margin: 0 auto;
+  padding-top: var(--header-height);
+  box-sizing: border-box;
+
+  height: calc(100vh - var(--header-height));
+  overflow: hidden;
+  background: #f8f9fa; /* match admin background */
+  position: relative;
+}
+
+/* ================================
+   PAGE VISIBILITY CONTROL (GLOBAL)
+================================ */
+.page {
+  display: none;
+  width: 100%;
+  background: #ffffff;
+  color: #333333;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+}
+
+.page.active {
+  display: block;
+}
+
+/* ================================
+   NON-DASHBOARD PAGE SCROLL
+================================ */
+.page:not(.dashboard) {
+  height: 100%;
+  overflow-y: auto;
+}
+
+
+input {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 1rem;
+}
+
+/* --- Button Styling --- */
+button {
+  border-radius: 5px;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  font-family: inherit;
+  /* Applying brand colors to buttons */
+  background-color: var(--secondary-purple);
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.25s;
+  margin: 0.5rem 0;
+}
+
+button:hover {
+  background-color: var(--primary-dark-purple);
+}
+
+/* Specific styling for smaller buttons in lists/sidebar */
+button.collect-share-btn,
+button.view-payments-btn,
+button.approve-btn { /* Removed sidebar-toggle-btn as it's styled separately */
+  padding: 0.4rem 0.8rem;
+  font-size: 0.9rem;
+  margin: 0 5px;
+  min-width: unset;
+  white-space: nowrap;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+button.sidebar-toggle-btn { /* Overrides for specific toggle button size */
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 1.5rem;
+  background-color: transparent; /* Make it transparent against header */
+  color: white; /* Ensure icon is white */
+  box-shadow: none; /* No shadow to blend with header */
+}
+
+/* --- Link Styling --- */
+a {
+  font-weight: 500;
+  /* Applying brand colors to links */
+  color: var(--secondary-purple);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--primary-dark-purple);
+  text-decoration: underline;
+}
+
+#signup-message, #login-message {
+  color: red; /* Keep red for error messages or adjust */
+  margin-top: 1rem;
+}
+
+/* --- App Header (Global) --- */
+#app-header {
+  display: flex; /* Always flex to control children */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--secondary-purple);
+  justify-content: space-between; /* Space out items: left, center, right */
+  align-items: center;
+  z-index: 9999;
+  height: 60px; /* Give the header a fixed height */
+  box-sizing: border-box; /* Include padding in height */
+}
+
+/* ==============================
+   🏷️ App Header Branding (Metrobank Style)
+============================== */
+
+.app-header-brand {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  height: 100%;
+  pointer-events: none; /* prevents blocking header buttons */
+}
+
+.brand-logo {
+  height: 38px;
+  width: auto;
+  object-fit: contain;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+  text-align: left;
+}
+
+.brand-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: white;
+  white-space: nowrap;
+}
+
+.brand-subtitle {
+  font-size: 11px;
+  letter-spacing: 2px;
+  opacity: 0.85;
+  color: white;
+}
+
+.logout-btn {
+  background: transparent;      /* ✅ no bubble */
+  border: none;
+
+  width: 44px;
+  height: 44px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 22px;
+  color: white;                 /* ✅ white icon on header */
+
+  cursor: pointer;
+  padding: 0;
+}
+
+.logout-btn:hover {
+  opacity: 0.8;
+}
+
+/* --------------------------------------------------------------------- */
+/* AUTHENTICATION PAGES LOGO STYLES                                    */
+/* --------------------------------------------------------------------- */
+.auth-logo {
+    text-align: center; /* Centers the image within its container */
+    margin-bottom: 24px; /* Space below the logo */
+    margin-top: 0;
+}
+
+.auth-logo img {
+    width: 120px; /* Set a reasonable width for auth pages */
+    height: auto; /* Maintain aspect ratio */
+    display: inline-block; /* Allows margin: auto to work on its parent if needed */
+    margin: 0 auto;
+}
+
+
+/* --------------------------------------------------------------------- */
+/* ADMIN DASHBOARD SPECIFIC STYLES                                     */
+/* --------------------------------------------------------------------- */
+
+/* Admin Panel Title with Logo */
+.admin-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+/* Style the image inside the h2 */
+.admin-panel-title .dashboard-logo {
+  width: 64px; /* Larger for admin panel title */
+  height: 64px;
+  object-fit: contain;
+}
+
+
+#admin-dashboard-layout {
+    display: flex;
+    height: 100%;
+    background-color: #f8f9fa; /* Light background for dashboard area */
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 1200px;
+    position: relative; /* For absolute positioning of toggle button */
+}
+
+/* Admin Sidebar Styling */
+#admin-sidebar {
+  width: 250px;
+  background-color: var(--primary-dark-purple);
+  color: white;
+  padding: 20px 20px 20px 50px;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+
+  position: relative;
+  transform: translateX(0);
+  transition: transform 0.3s ease-in-out;
+}
+
+/* ADMIN SIDEBAR OPEN STATE */
+#admin-dashboard-layout #admin-sidebar {
+  width: 250px;
+  flex: 0 0 250px;
+  transition: width 0.3s ease, transform 0.3s ease;
+}
+
+#admin-sidebar h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+    color: #f8f9fa;
+    text-align: center;
+}
+
+#admin-sidebar {
+  overflow-y: auto;
+  height: 100%;
+}
+
+#admin-nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#admin-nav-links button {
+    width: 100%;
+    padding: 10px 15px;
+    background-color: transparent;
+    border: 1px solid rgba(255,255,255,0.2); /* Adjust this border if you want accent-silver */
+    color: white;
+    text-align: left;
+    transition: background-color 0.2s, border-color 0.2s;
+    border-radius: 5px;
+}
+
+#admin-nav-links button:hover {
+    background-color: rgba(255,255,255,0.1);
+    border-color: var(--accent-silver); /* Using accent color on hover */
+}
+
+#admin-nav-links button.active {
+    background-color: var(--secondary-purple);
+    border-color: var(--secondary-purple);
+    font-weight: bold;
+}
+
+/* Admin Main Content Area */
+#admin-main-content {
+    flex-grow: 1;
+    padding: 20px;
+    background-color: #ffffff;
+    overflow-y: auto;
+}
+
+/* ✅ ADMIN SIDEBAR: collapse should remove layout space */
+#admin-dashboard-layout #admin-sidebar {
+  width: 250px;
+  flex: 0 0 250px; /* reserve space when open */
+}
+
+#admin-dashboard-layout.sidebar-collapsed #admin-sidebar {
+  width: 0 !important;
+  flex: 0 0 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+
+/* when sidebar is collapsed, remove the left spacing visually */
+#admin-dashboard-layout.sidebar-collapsed #admin-sidebar {
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+
+#admin-dashboard-layout.sidebar-collapsed #admin-main-content {
+  flex: 1;
+}
+
+/* Dynamic content container */
+#admin-section-content {
+    display: block;
+    width: 100%;
+    text-align: left;
+    color: #333;
+}
+
+/* Financial Totals Box */
+.financial-totals-box {
+    margin-bottom: 16px;
+    font-weight: bold;
+    font-size: 18px;
+    padding: 10px;
+    border: 1px solid var(--accent-silver);
+    border-radius: 5px;
+    background-color: #f8f9fa;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.financial-totals-box p {
+    margin: 0;
+    padding: 0;
+}
+
+/* ================================
+   ADMIN DASHBOARD HEIGHT FIX
+================================ */
+
+#page-dashboard-admin {
+  height: 100%;
+  overflow: hidden;
+  min-height: 0; /* critical */
+}
+
+#admin-dashboard-layout {
+  height: 100%;
+}
+
+#admin-main-content {
+  height: 100%;
+  overflow-y: auto;
+}
+
+
+/* Approved Member Row Styling */
+.approved-member-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.approved-member-row:last-child {
+    border-bottom: none;
+}
+
+.member-main {
+    flex-grow: 1;
+    min-width: 150px;
+}
+
+.member-name {
+    font-weight: bold;
+    font-size: 1.1em;
+    color: #333;
+}
+
+.member-meta {
+    font-size: 0.9em;
+    color: #666;
+}
+
+.months-input {
+    width: 60px;
+    padding: 5px;
+    margin: 0;
+    text-align: center;
+    border: 1px solid var(--accent-silver);
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.member-actions {
+    display: flex;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+/* Button Sizing Refinements */
+button.collect-share-btn,
+button.view-payments-btn,
+button.approve-btn { /* Removed sidebar-toggle-btn as it's styled separately */
+  padding: 0.4rem 0.8rem;
+  font-size: 0.9rem;
+  margin: 0 5px;
+  min-width: unset;
+  white-space: nowrap;
+  line-height: 1;
+  display: inline-flex;
+  align-items: stretch; /* ✅ CRITICAL FIX */
+  justify-content: center;
+}
+
+/* Override for buttons specifically within the approved-member-row */
+.approved-member-row .collect-share-btn,
+.approved-member-row .view-payments-btn {
+    padding: 0.4em 0.8em;
+    font-size: 0.85em;
+    margin: 0 3px;
+    height: auto;
+    min-height: unset;
+}
+
+/* Card Styling (from your example) */
+.card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+
+.card h3 {
+  margin-bottom: 12px;
+}
+
+.stat {
+  margin-bottom: 12px;
+}
+
+.amount {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.label {
+  display: block;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+/* Payments Table Styling */
+.payments-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.payments-table th,
+.payments-table td {
+    border: 1px solid #ddd;
+    padding: 10px 15px;
+    text-align: left;
+}
+
+.payments-table th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+    color: #555;
+    text-transform: uppercase;
+    font-size: 0.9em;
+}
+
+.payments-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.payments-table tbody tr:hover {
+    background-color: #e9e9e9;
+}
+
+/* Styling for the Back button in payment history */
+#back-to-members-btn {
+    margin-top: 10px;
+    align-self: flex-start;
+}
+
+/* ===============================
+   Mobile Adjustments
+   =============================== */
+@media (max-width: 768px) {
+  /* General button adjustment for small screens */
+  button {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.85rem;
+    margin: 0.25rem 0;
+  }
+
+  /* Action buttons inside member list - more specific targeting */
+  .approved-member-row {
+      flex-direction: column; /* Stack vertically on small screens */
+      align-items: flex-start; /* Align content to the left */
+  }
+  .approved-member-row .member-actions {
+      width: 100%; /* Make actions full width */
+      justify-content: space-around; /* Distribute buttons */
+  }
+  .approved-member-row .months-input {
+      width: 100%; /* Make input full width */
+      margin-bottom: 5px;
+  }
+
+  .approved-member-row .collect-share-btn,
+  .approved-member-row .view-payments-btn,
+  .approved-row .approve-btn {
+    padding: 0.3em 0.5em;
+    font-size: 0.75em;
+    min-width: auto;
+    white-space: nowrap;
+  }
+
+  /* Reduce spacing between buttons */
+  .approved-member-row .collect-share-btn {
+    margin-right: 2px;
+  }
+  .approved-member-row .view-payments-btn {
+    margin-left: 0;
+  }
+
+  /* Sidebar toggle stays touch-friendly */
+  button.sidebar-toggle-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 1.2rem;
+  }
+}
+/* ================================
+🪟 Floating Modal System (Unified)
+================================ */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.modal.active {
+  display: flex;
+}
+
+.modal .modal-content {
+  background: #ffffff;
+  width: 92%;
+  max-width: 420px;
+  max-height: 88vh;
+  overflow-y: auto;
+
+  border-radius: 16px;
+  padding: 18px 18px 22px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+
+  animation: modalPop 0.25s ease-out;
+  position: relative;
+}
+
+/* Smooth open animation */
+@keyframes modalPop {
+  from {
+    transform: scale(0.94) translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Close button */
+.modal .close-button {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  font-size: 24px;
+  cursor: pointer;
+  color: #777;
+}
+
+.modal .close-button:hover {
+  color: #000;
+}
+
+/* Form spacing inside modal */
+.modal-form-group {
+  margin-bottom: 14px;
+  text-align: left;
+}
+
+.modal-form-group label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  color: #333;
+}
+
+.modal-form-group input,
+.modal-form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #333;
+  box-sizing: border-box;
+}
+
+/* 📱 Mobile modal spacing improvements */
+@media (max-width: 600px) {
+  .modal .modal-content {
+    padding: 16px 14px 20px;
+  }
+
+  .modal-form-group {
+    margin-bottom: 12px;
+  }
+
+  button {
+    min-height: 44px;
+  }
+}
+
+/* 📱 Bottom Sheet Behavior on Mobile */
+@media (max-width: 600px) {
+  .modal {
+    align-items: flex-end;
+  }
+
+  .modal .modal-content {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+
+    border-radius: 18px 18px 0 0;
+    padding-bottom: 28px;
+
+    animation: none;
+    transform: translateY(100%);
+  }
+
+  .modal.active .modal-content {
+    transform: translateY(0);
+    transition: transform 0.3s ease;
+  }
+}
+
+/* ==============================
+   🧾 RECEIPT MODAL FIX
+============================== */
+
+#receipt-content {
+  color: #111;               /* force readable text */
+  white-space: pre-wrap;     /* preserve line breaks */
+  font-family: monospace;    /* receipt-style formatting */
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+    /* --- Specific Styles for Phase 5: Loan Requests & Management --- */
+
+/* Loan Application Form Styling */
+.loan-application-form {
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    margin-bottom: 20px;
+}
+
+.loan-application-form label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #333;
+}
+
+.loan-application-form input[type="file"] {
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 5px;
+    background-color: #fff;
+    margin-bottom: 15px;
+}
+
+.loan-application-form button {
+    margin-top: 15px;
+    width: auto; /* Allow buttons to size based on content */
+}
+
+/* Styling for individual loan request items in the Admin Dashboard */
+.loan-request-item {
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.loan-request-item h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: var(--secondary-purple);
+}
+
+.loan-request-item p {
+    margin: 5px 0;
+    color: #555;
+}
+
+.loan-request-item .actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px; /* Spacing between action buttons */
+}
+
+/* Specific button styles for Approve/Deny actions */
+button.approve-btn {
+    background-color: #28a745; /* Green for approve */
+}
+
+button.approve-btn:hover {
+    background-color: #218838;
+}
+
+button.deny-btn {
+    background-color: #dc3545; /* Red for deny */
+}
+
+button.deny-btn:hover {
+    background-color: #c82333;
+}
+
+/* Update general button styles to include deny-btn for consistent sizing/padding */
+button.collect-share-btn,
+button.view-payments-btn,
+button.approve-btn,
+button.deny-btn { /* Added deny-btn here */
+  padding: 0.4rem 0.8rem;
+  font-size: 0.9rem;
+  margin: 0 5px;
+  min-width: unset;
+  white-space: nowrap;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#loan-agreement-details p {
+  margin: 6px 0;
+  font-size: 0.95rem;
+}
+
+#loan-agreement-details strong {
+  display: inline-block;
+  min-width: 180px;
+}
+
+#loan-agreement-details {
+  color: #333;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+#loan-agreement-details strong {
+  display: inline-block;
+  min-width: 180px;
+}
+/* ============================= */
+/* LOAN AGREEMENT MODAL STYLES   */
+/* ============================= */
+
+#loan-agreement-modal .modal-content {
+  color: #222; /* readable dark text */
+}
+
+#loan-agreement-summary {
+  color: #222;
+}
+
+#loan-agreement-summary ul {
+  padding-left: 1.2rem;
+}
+
+#loan-agreement-summary li {
+  margin-bottom: 0.5rem;
+  color: #222;
+}
+
+.loan-badge {
+  background: #e6f7ec;
+  color: #1e7e34;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  margin-left: 8px;
+  font-weight: 600;
+}
+
+
+/* ==============================
+   🔽 Bottom Navigation Bar
+============================== */
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+
+  height: 64px;
+  background: #ffffff;
+  border-top: 1px solid #ddd;
+
+  display: grid;
+  grid-template-columns: 1fr 1fr 80px 1fr 1fr; /* 👈 CENTER GAP */
+  align-items: center;
+
+  z-index: 9000;
+}
+
+
+.bottom-nav .nav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+
+  font-size: 12px;
+  color: #444;
+}
+
+.bottom-nav .nav-btn .icon {
+  font-size: 20px;
+}
+
+.bottom-nav .nav-btn:active {
+  transform: scale(0.95);
+}
+
+.nav-center-gap {
+  pointer-events: none;
+}
+
+.bottom-nav {
+  pointer-events: auto;
+  isolation: isolate;
+}
+
+.bottom-nav {
+  z-index: 9999;
+}
+
+
+/* ==============================
+   ⬅ Back Button (Sub Pages)
+============================== */
+
+.back-btn {
+  background: none;
+  border: none;
+  color: var(--secondary-purple);
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.back-btn:hover {
+  text-decoration: underline;
+}
+
+details {
+  background: #f4f4f4;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+summary {
+  font-weight: bold;
+  cursor: pointer;
+}
+
+details p,
+details ul {
+  margin-top: 8px;
+}
+
+.profile-pic-wrapper {
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.profile-img {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 8px;
+}
+
+/* ==============================
+   🧩 Dashboard Layout Fix
+============================== */
+
+
+.borrower-stats-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.dashboard-scroll { 
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+
+  padding: 16px 16px 160px; /* space for bottom nav + FAB */
+  padding-bottom: 140px;                /* bottom nav + shop FAB */
+
+  box-sizing: border-box;
+
+  display: block;        /* ✅ ADD THIS LINE */
+  position: relative;    /* ✅ ADD THIS LINE */
+}
+
+/* ================================
+   BORROWER DASHBOARD SCROLL OWNER
+================================ */
+#page-dashboard-borrower {
+  height: 100%;
+}
+
+#page-dashboard-borrower .dashboard-scroll {
+  height: calc(100% - 70px); /* bottom nav */
+  overflow-y: auto;
+}
+
+
+/* ✅ Ensure dashboard content fills the page */
+/* (already handled above) */
+
+.page.dashboard .dashboard-scroll {
+  background: white;
+  /* min-height handled by .dashboard-scroll or parent containers */
+}
+
+#page-dashboard-member {
+  height: 100%;
+}
+
+#page-dashboard-member .dashboard-scroll {
+  height: calc(100% - var(--bottom-nav-height));
+  overflow-y: auto;
+}
+
+/* =========================
+   EDIT PROFILE CARD UI
+========================= */
+
+.profile-card {
+  max-width: 420px;
+  margin: 20px auto;
+  background: #ffffff;
+  padding: 20px 22px 26px;
+  border-radius: 14px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+}
+
+.profile-card h2 {
+  text-align: center;
+  margin-bottom: 16px;
+  color: #333;
+}
+
+/* Inputs inside profile card */
+
+.profile-card .modal-form-group input,
+.profile-card .modal-form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 14px;
+}
+
+.profile-card textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+.profile-card input:disabled {
+  background: #f3f3f3;
+  color: #666;
+}
+
+/* Save button */
+
+.profile-card button {
+  width: 100%;
+  background: linear-gradient(135deg, var(--secondary-purple), var(--primary-dark-purple));
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 15px;
+}
+
+/* message */
+
+#member-profile-message,
+#borrower-profile-message {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 13px;
+}
+
+/* ==============================
+   🔐 Password Toggle FINAL FIX
+============================== */
+
+.password-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-wrapper input {
+  width: 100%;
+  height: 44px;
+  padding: 10px 44px 10px 12px; /* space for eye */
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  box-sizing: border-box;
+}
+
+/* Override global button styles */
+.password-wrapper .eye-btn {
+  all: unset;                 /* 🔥 removes global button styling */
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+
+  width: 24px;
+  height: 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+  font-size: 16px;
+  color: #666;
+
+    z-index: 5;              /* 🔥 ensure above input */
+  pointer-events: auto;   /* 🔥 force clickable */
+}
+
+.password-wrapper .eye-btn:hover {
+  color: #000;
+}
+
+/* ======================================
+   ✅ LOGIN INPUT WIDTH ALIGNMENT FIX
+====================================== */
+
+#page-login input,
+#page-login .password-wrapper {
+  width: 100%;
+  max-width: 520px;     /* adjust if you want wider/narrower */
+  margin-left: auto;
+  margin-right: auto;
+  display: block;
+}
+
+/* Match email input height + padding to password field */
+#page-login input:not([type="password"]) {
+  height: 44px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+
+/* ============================
+   📷 Profile Avatar UI Upgrade
+============================ */
+
+.avatar-container {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 8px;
+}
+
+.profile-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+
+  /* ✅ Thicker visible border */
+  border: 4px solid var(--secondary-purple);
+  background: #f2f2f2;
+}
+
+/* Camera floating button */
+.camera-btn {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+
+  background: var(--secondary-purple);
+  color: white;
+  font-size: 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.camera-btn:hover {
+  background: var(--primary-dark-purple);
+  transform: scale(1.05);
+}
+
+/* ======================================
+   🚫 Force Hide Native File Input Button
+====================================== */
+
+.profile-pic-wrapper input[type="file"] {
+  display: none !important;
+}
+/* ==============================
+   🎨 Theme Picker Modal
+============================== */
+
+.theme-modal {
+  background: #111;
+  color: white;
+  padding: 22px;
+  border-radius: 14px;
+  width: 320px;
+  max-width: 90%;
+  text-align: center;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+}
+
+.theme-modal h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.theme-grid button {
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  background: #222;
+  color: white;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.theme-grid button:hover {
+  background: #333;
+  transform: scale(1.04);
+}
+
+#close-theme-modal {
+  width: 100%;
+  background: var(--secondary-purple);
+}
+
+/* 💳 Payment Cards */
+.payment-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.payment-card {
+  background: white;
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.payment-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.12);
+}
+
+.payment-icon {
+  font-size: 28px;
+  margin-bottom: 6px;
+}
+
+.payment-label {
+  font-weight: 600;
+}
+
+.payment-name {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.payment-number {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.payment-icon img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+.payment-card {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.payment-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 18px rgba(0,0,0,0.12);
+}
+
+
+/* ================================
+🎚 Loan Slider UI Styling
+================================ */
+
+.loan-preview {
+  background: #f8f9fb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 10px;
+  font-size: 0.95rem;
+}
+
+.loan-preview p {
+  margin: 4px 0;
+  display: flex;
+  justify-content: space-between;
+  font-weight: 500;
+}
+
+/* Slider container spacing */
+.modal-form-group input[type="range"] {
+  width: 100%;
+  margin-top: 6px;
+}
+
+/* Chrome / Edge */
+.modal-form-group input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: #ddd;
+  border-radius: 4px;
+}
+
+.modal-form-group input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 18px;
+  width: 18px;
+  background: #7b1fa2; /* WeeLend purple */
+  border-radius: 50%;
+  margin-top: -6px;
+  cursor: pointer;
+}
+
+/* Slider active feedback */
+.modal-form-group input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+.modal-form-group input[type="range"]:active::-moz-range-thumb {
+  transform: scale(1.15);
+}
+
+
+/* Firefox */
+.modal-form-group input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: #ddd;
+  border-radius: 4px;
+}
+
+.modal-form-group input[type="range"]::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  background: #7b1fa2;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Label spacing */
+.modal-form-group label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+}
+
+/* Min / Max hint */
+.loan-limit-display {
+  font-size: 0.8rem;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* Mobile tightening */
+@media (max-width: 600px) {
+  .loan-preview {
+    font-size: 0.85rem;
+  }
+
+  .modal-form-group label {
+    font-size: 0.9rem;
+  }
+}
+
+/* 📱 Bigger slider thumb on mobile */
+@media (max-width: 600px) {
+  .modal-form-group input[type="range"]::-webkit-slider-thumb {
+    height: 26px;
+    width: 26px;
+  }
+
+  .modal-form-group input[type="range"]::-moz-range-thumb {
+    height: 26px;
+    width: 26px;
+  }
+}
+
+.shop-fab {
+  position: fixed;
+  bottom: 32px;                /* 👈 halfway above 64px nav */
+  left: 50%;
+  transform: translateX(-50%);
+
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.85);
+  color: #111;
+
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  border: 1px solid rgba(0, 0, 0, 0.08);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 26px;
+  cursor: pointer;
+
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.18),
+    0 0 0 6px rgba(255, 255, 255, 0.9);
+
+  z-index: 10001;               /* ✅ MUST be higher than bottom-nav */
+}
+
+/* 🛍️ Shop Coming Soon Modal – Text Fix */
+#shop-coming-soon-modal .modal-content {
+  color: #222; /* force readable dark text */
+}
+
+#shop-coming-soon-modal h3 {
+  color: #222;
+}
+
+#shop-coming-soon-modal p {
+  color: #333;
+}
+
+/* ✅ Force Shop modal to center (override mobile bottom-sheet behavior) */
+#shop-coming-soon-modal.modal {
+  align-items: center !important;
+}
+
+/* Undo bottom-sheet transform on mobile for this modal only */
+@media (max-width: 600px) {
+  #shop-coming-soon-modal.modal .modal-content {
+    border-radius: 16px !important;
+    transform: none !important;
+    transition: none !important;
+    width: 92% !important;
+    max-width: 420px !important;
+  }
+}
+
+
+/* ================================
+   🔒 ADMIN FULL VIEWPORT FIX
+================================ */
+
+#page-dashboard-admin {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+#admin-dashboard-layout {
+  flex: 1;
+  min-height: 0; /* critical for flex scroll */
+}
+
+#admin-main-content {
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* ================================
+   🔒 ADMIN MODE OVERRIDES
+================================ */
+
+body.admin-mode .bottom-nav,
+body.admin-mode .shop-fab {
+  display: none !important;
+}
+
+body.admin-mode .dashboard-scroll {
+  padding-bottom: 16px !important;
+}
+
+/* ==============================
+   🛍️ Marimar’s Bazaar (Shop Pages)
+============================== */
+
+.shop-cards{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:14px;
+  margin-top:16px;
+}
+
+.shop-card{
+  cursor:pointer;
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+
+.shop-card:active{
+  transform:scale(0.99);
+}
+
+/* ==============================
+   🛍️ Shop Terms Modal Text Fix
+============================== */
+
+#shop-terms-modal .modal-content {
+  color: #222 !important;
+}
+
+#shop-terms-modal h3,
+#shop-terms-modal p,
+#shop-terms-modal li,
+#shop-terms-modal label {
+  color: #222 !important;
+}
+
+#shop-terms-modal .modal-form-group {
+  color: #222 !important;
+}
+
+
+/* ============================== */
+/* ☰ GLOBAL COLLAPSIBLE SIDEBAR   */
+/* ============================== */
+#app-sidebar {
+  position: fixed;
+  top: var(--header-height);
+  left: 0;
+  width: 280px;
+  height: calc(100vh - var(--header-height));
+  background: #fff;
+  color: #222;
+  box-shadow: 2px 0 18px rgba(0,0,0,.18);
+  transform: translateX(-110%);
+  transition: transform .25s ease;
+  z-index: 10002;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+#app-sidebar.active {
+  transform: translateX(0);
+}
+
+.sidebar-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+  z-index: 10001;
+}
+
+.sidebar-overlay.active{
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sidebar-link{
+  width: 100%;
+  text-align: left;
+  background: #f3f3f3;
+  color: #222;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+/* =========================================
+   ✅ FINAL ADMIN SIDEBAR OVERRIDE (LAST)
+   ========================================= */
+#admin-sidebar {
+  transform: translateX(0) !important;
+  pointer-events: auto !important;
+}
+
+#admin-sidebar.collapsed {
+  transform: translateX(-100%) !important;
+  pointer-events: none !important;
+}
+
+/* ================================
+   🧾 PA-SWIPE CONTRACT CARDS
+================================ */
+
+.contracts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.contract-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  color: #222;
+}
+
+.contract-header {
+  margin-bottom: 10px;
+}
+
+.contract-left {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.contract-img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.contract-title {
+  font-weight: 700;
+  font-size: 16px;
+  color: #222;
+  margin-bottom: 4px;
+}
+
+.contract-body {
+  margin-top: 10px;
+}
+
+.contract-text {
+  width: 100%;
+  min-height: 220px;
+  margin-top: 8px;
+  padding: 10px;
+  font-size: 12px;
+  font-family: monospace;
+  color: #222;
+  background: #f7f7f7;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  resize: vertical;
+}
+
+.contract-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.contract-actions .btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  border: none;
+  cursor: pointer;
+}
+
+.contract-actions .btn.secondary {
+  background: #eee;
+  color: #333;
+}
+
+.contract-actions .btn.secondary:hover {
+  background: #ddd;
+}
+
+.contract-actions .btn.primary {
+  background: var(--secondary-purple);
+  color: white;
+}
+
+.contract-actions .btn.danger {
+  background: #dc3545;
+  color: white;
+}
+
+.status-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+}
+
+.status-badge.status-awaiting_acceptance {
+  background: #ffc107;
+  color: #333;
+}
+
+.status-badge.status-accepted {
+  background: #28a745;
+}
+
+.status-badge.status-declined {
+  background: #dc3545;
+}
+
+.muted {
+  color: #777;
+}
+
+.small {
+  font-size: 12px;
+}
+
+/* ================================
+   🪟 PAYMENT COLLECTION POPUP
+   (used by Loan Repayments AND
+   Pa-Swipe Collections)
+================================ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10500;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.repayment-modal {
+  background: #fff;
+  color: #222;
+  width: 100%;
+  max-width: 400px;
+  max-height: 88vh;
+  overflow-y: auto;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+}
+
+.repayment-modal h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #222;
+}
+
+.repayment-modal p {
+  margin: 6px 0;
+  color: #333;
+}
+
+.repayment-modal label {
+  display: block;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  font-weight: 600;
+  color: #333;
+}
+
+.repayment-modal input[type="number"] {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.btn-confirm {
+  background: var(--secondary-purple);
+  color: white;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-confirm:hover {
+  background: var(--primary-dark-purple);
+}
+
+.btn-cancel {
+  background: #eee;
+  color: #333;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-cancel:hover {
+  background: #ddd;
+}
+
+@media (max-width: 600px) {
+  .repayment-modal {
+    max-width: 100%;
+  }
+}
+
+/* ================================
+   📂 ADMIN SIDEBAR - COLLAPSIBLE GROUPS
+================================ */
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+.nav-group-header {
+  width: 100%;
+  padding: 10px 15px;
+  background-color: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: white;
+  text-align: left;
+  font-weight: 700;
+  border-radius: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.nav-group-header:hover {
+  background-color: rgba(255,255,255,0.15);
+}
+
+.nav-group-header .chevron {
+  transition: transform 0.2s ease;
+}
+
+.nav-group-header.collapsed .chevron {
+  transform: rotate(-90deg);
+}
+
+.nav-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 10px;
+  margin-top: 6px;
+  overflow: hidden;
+  max-height: 600px;
+  transition: max-height 0.25s ease, margin-top 0.25s ease;
+}
+
+.nav-group-items.collapsed {
+  max-height: 0;
+  margin-top: 0;
+}
+
+.nav-group-items .tab-button {
+  font-size: 0.92rem;
+  padding: 8px 12px;
+}
+
+.nav-group-placeholder {
+  color: rgba(255,255,255,0.5);
+  font-size: 0.85rem;
+  padding: 6px 12px;
+  margin: 0;
+  font-style: italic;
+}
+
+/* ================================
+   🔍 IMAGE LIGHTBOX (click to zoom)
+================================ */
+
+img.lightbox-img {
+  cursor: zoom-in;
+}
+
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 20000;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.lightbox-overlay.active {
+  display: flex;
+}
+
+.lightbox-full-img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  cursor: default;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 20px;
+  right: 28px;
+  font-size: 36px;
+  color: white;
+  cursor: pointer;
+  z-index: 20001;
+}
+
+.lightbox-close:hover {
+  color: #ccc;
+}

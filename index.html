@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WeeLend App</title>
+  <!-- build-refresh -->
+</head>
+
+<body>
+  <!-- 🔥 Payment Modal (must be global, outside page sections) -->
+<div id="loan-payment-modal" class="modal" style="display:none;">
+  <div class="modal-content card">
+    <span class="close-button" id="loan-payment-close">&times;</span>
+    <h3>Collect Loan Payment</h3>
+
+    <p><strong>Borrower:</strong> <span id="loan-payment-borrower-name">-</span></p>
+    <p><strong>Loan ID:</strong> <span id="loan-payment-loan-id">-</span></p>
+    <p><strong>Remaining Balance:</strong> ₱<span id="loan-payment-current-balance">0</span></p>
+
+    <div class="modal-form-group">
+      <label>Payment Amount (₱):</label>
+      <input id="loan-payment-amount" type="number" min="1" placeholder="Enter Payment Amount" />
+    </div>
+
+    <div class="modal-form-group">
+      <label>Payment Method:</label>
+      <select id="loan-payment-method">
+        <option value="cash">Cash</option>
+        <option value="gcash">Gcash</option>
+        <option value="bank">Bank Transfer</option>
+        <option value="check">Check</option>
+      </select>
+    </div>
+
+    <button id="loan-payment-confirm-btn" class="request-loan-btn">
+      Confirm Payment
+    </button>
+  </div>
+</div>
+
+  <!-- Global App Header - THIS IS THE ONLY HEADER BLOCK -->
+  <header id="app-header" class="app-header">
+    <!-- Sidebar Toggle Button (moved to global header) -->
+    <button id="global-toggle-sidebar-btn" class="sidebar-toggle-btn">☰</button>
+
+<div class="app-header-brand">
+  <img src="/weelend-logo.png" alt="Weelend Logo" class="brand-logo" />
+
+  <div class="brand-text">
+    <div class="brand-title">WEE LENDING</div>
+    <div class="brand-subtitle">COOPERATIVE</div>
+  </div>
+</div>
+
+    <!-- Logout Button -->
+<button id="global-logout-btn" class="logout-btn" title="Logout">
+  ⎋
+</button>
+  </header>
+<!-- ============================== -->
+<!-- ☰ MEMBER/BORROWER SIDEBAR -->
+<!-- ============================== -->
+<aside id="app-sidebar" class="app-sidebar">
+  <div class="sidebar-header">
+    <h3>Menu</h3>
+  </div>
+
+  <div class="sidebar-links">
+    <button id="sidebar-contracts-btn" class="sidebar-link">
+      🧾 Contracts
+    </button>
+  </div>
+</aside>
+
+<div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+  <main>
+
+<!-- LOGIN PAGE -->
+<section id="page-login" class="page">
+  <div class="auth-logo">
+    <img src="/weelend-logo.png" alt="Weelend Logo" />
+  </div>
+
+  <h2>Login</h2>
+
+  <input id="login-email" placeholder="Email" />
+  <div class="password-wrapper">
+  <input id="login-password" type="password" placeholder="Password" />
+  <button type="button" id="toggle-login-password" class="eye-btn">👁</button>
+</div>
+
+
+  <button id="login-btn">Login</button>
+
+  <!-- ✅ FORGOT PASSWORD LINK -->
+  <p style="text-align:center; margin-top:8px;">
+    <a href="#" id="forgot-password-link">Forgot Password?</a>
+  </p>
+
+  <p id="login-message"></p>
+
+  <p>
+    No account?
+    <a href="#" id="go-register">Create one</a>
+  </p>
+</section>
+
+
+    <!-- REGISTER PAGE -->
+    <section id="page-register" class="page">
+      <div class="auth-logo">
+        <img src="/weelend-logo.png" alt="Weelend Logo" />
+      </div>
+      <h2>Create Account</h2>
+      <input id="signup-fullname" placeholder="Full Name" />
+      <input id="signup-email" placeholder="Email" />
+      <input id="signup-password" type="password" placeholder="Password" />
+      <select id="signup-request-role">
+        <option value="member">Member</option>
+        <option value="borrower">Borrower</option>
+      </select>
+      <button id="signup-btn">Sign Up</button>
+      <p id="signup-message"></p>
+
+      <p>
+        Already have an account?
+        <a href="#" id="go-login">Login</a>
+      </p>
+    </section>
+
+    <!-- PENDING PAGE -->
+    <section id="page-pending" class="page">
+      <div class="auth-logo">
+        <img src="/weelend-logo.png" alt="Weelend Logo" />
+      </div>
+      <h2>Account Pending Approval</h2>
+      <p>Your account is under review by an administrator.</p>
+    </section>
+
+    <!-- USER DASHBOARD (Member) -->
+    <section id="page-dashboard-member" class="page dashboard">
+      <div class="dashboard-scroll">
+
+      <div class="auth-logo">
+        <img src="/weelend-logo.png" alt="Weelend Logo" />
+      </div>
+      <h2 class="member-dashboard-title">Welcome, <span id="member-name-display">Member</span>!</h2>
+
+      <div class="member-stats-container">
+        <!-- Available Coop Funds -->
+        <div class="card stat-card">
+          <h3>Co-op Funds Available</h3>
+          <p class="amount" id="member-available-funds">₱0</p>
+          <span class="label">Total funds available in the cooperative.</span>
+        </div>
+
+        <!-- Your Share Balance -->
+        <div class="card stat-card">
+          <h3>Your Share Balance</h3>
+          <p class="amount" id="member-share-balance">₱0</p>
+          <span class="label">Your total contributions to the cooperative.</span>
+        </div>
+
+        <!-- Your Loan Limit -->
+        <div class="card stat-card">
+          <h3>Your Loan Limit</h3>
+          <p class="amount" id="member-loan-limit">₱0</p>
+          <span class="label">Maximum amount you can borrow based on your shares.</span>
+        </div>
+
+        <!-- PHASE 5 ADDITION: Guarantor Card for Member Dashboard -->
+        <div class="card stat-card">
+          <h3>Guarantor Status</h3>
+          <p class="amount" id="member-guarantor-status">None</p>
+          <span class="label" id="member-guarantor-details">You are not currently guaranteeing any loans.</span>
+        </div>
+
+        <!-- PHASE 5 ADDITION: Existing Loan Card for Member Dashboard -->
+        <div class="card stat-card">
+          <h3>Your Current Loan (as Member)</h3>
+          <p class="amount" id="member-current-loan-amount">₱0</p>
+          <span class="label">Due Date: <span id="member-current-loan-due-date">N/A</span></span>
+          <span class="label">Status: <span id="member-current-loan-status">No active loan</span></span>
+        </div>
+        
+        <!-- PHASE 5 ADDITION: Member Monthly Share Commitment -->
+        <div class="card stat-card">
+          <h3>Your Monthly Share Commitment</h3>
+          <p class="amount" id="member-current-month-share">₱0</p> <!-- Changed from ₱3000 to ₱0 -->
+          <span class="label">Your committed share amount per month.</span>
+        </div>
+
+        <div class="card stat-card">
+  <h3>Cooperative Capital Pool</h3>
+  <p class="amount" id="member-capital-pool">₱0</p>
+  <span class="label">Total funds for reinvestment.</span>
+</div>
+
+<div class="card stat-card">
+  <h3>Your Estimated Pool Share</h3>
+  <p class="amount" id="member-pool-share">₱0</p>
+  <span class="label">Based on your share contributions.</span>
+</div>
+
+<div class="card stat-card">
+  <h3>Trust Fund</h3>
+  <p class="amount" id="member-trust-fund">₱0</p>
+  <span class="label">Risk protection reserve.</span>
+</div>
+
+<div class="card stat-card">
+  <h3>Running Payout Estimate</h3>
+
+  <p>Capital Pool Share:
+    <strong id="member-payout-capital">₱0</strong>
+  </p>
+
+  <p>Effort Pool Share:
+    <strong id="member-payout-effort">₱0</strong>
+  </p>
+
+  <hr/>
+
+  <p>Total Estimated Payout:
+    <strong id="member-total-payout">₱0</strong>
+  </p>
+
+  <small>Based on current cooperative earnings.</small>
+</div>
+
+      </div>
+
+      <div id="member-section-content">
+
+        <!-- PHASE 5 ADDITION: Request Loan Button for Member Dashboard -->
+        <button id="member-request-loan-btn" class="request-loan-btn">Request New Loan</button>
+      </div>
+
+      <p id="member-message"></p>
+
+      </div>
+
+</section> <!-- ✅ THIS WAS MISSING -->
+
+<!-- ============================= -->
+<!-- MEMBER: LOAN HISTORY PAGE -->
+<!-- ============================= -->
+<section id="page-member-history" class="page">
+  <button class="back-btn" data-back="member">⬅ Back</button>
+
+  <h2>📖 Loan History</h2>
+
+  <div id="member-history-content"></div>
+</section>
+
+<!-- ============================= -->
+<!-- MEMBER: LOAN DETAILS PAGE -->
+<!-- ============================= -->
+<section id="page-member-loan-details" class="page">
+  <button class="back-btn" data-back="member-history">⬅ Back</button>
+
+  <h2>📄 Loan Details</h2>
+
+  <div id="member-loan-details-summary"></div>
+
+  <h3>💸 Payment History</h3>
+  <div id="member-loan-payment-history"></div>
+</section>
+
+<!-- ============================= -->
+<!-- MEMBER: INFO / RULES PAGE -->
+<!-- ============================= -->
+<section class="page" id="page-member-info">
+
+  <div class="info-page-container">
+
+    <h2>WeeLend Cooperative Information</h2>
+
+    <!-- ========================= -->
+    <!-- MEMBERSHIP & ROLES -->
+    <!-- ========================= -->
+    <details open>
+      <summary>👥 Membership & User Roles</summary>
+      <p><strong>Admin</strong> – First registered user. Full control over approvals, loans, fees, and profiles.</p>
+      <p><strong>Member</strong> – Approved by Admin. Provides shares, may act as guarantor, and monitors borrowers.</p>
+      <p><strong>Borrower</strong> – Approved by Admin. Can only view and manage personal loan information.</p>
+    </details>
+
+    <!-- ========================= -->
+    <!-- SHARE CAPITAL -->
+    <!-- ========================= -->
+    <details>
+      <summary>💰 Capital Contribution (Shares)</summary>
+      <ul>
+        <li>Share value: <strong>₱1,000 per share</strong></li>
+        <li>New Member limit: <strong>1 share (₱1,000)</strong></li>
+        <li>Returning Member limit: <strong>2 shares (₱2,000)</strong></li>
+        <li>Admin limit: <strong>5 shares (₱5,000)</strong></li>
+        <li>Shares must be paid monthly to remain in good standing.</li>
+        <li>Shares will increase (₱1,000) for the next fiscal year</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- LOAN TERMS -->
+    <!-- ========================= -->
+    <details>
+      <summary>📄 Loan Terms & Conditions</summary>
+      <ul>
+        <li>Loan amount: ₱1,000 – ₱100,000</li>
+        <li>Interest: 10% per month</li>
+        <li>Payment: Monthly or Semi-Monthly (every 15 days)</li>
+        <li>Late fee: 3% immediately, escalates to 5% after 15 days</li>
+        <li>Only Admin may waive penalties</li>
+        <li>All payments generate digital receipts</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- GUARANTOR & EFFORT -->
+    <!-- ========================= -->
+    <details>
+      <summary>🤝 Guarantee & Effort System</summary>
+      <ul>
+        <li>All loans must have a guarantor</li>
+        <li>Members/Admins may self-guarantee</li>
+        <li>Guaranteeing borrowers earns <strong>Effort</strong></li>
+        <li>Effort affects year-end profit payout</li>
+        <li>Guarantors must monitor borrower payments</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- PAYOUT -->
+    <!-- ========================= -->
+    <details>
+      <summary>🏁 Fiscal Year & Payout Distribution</summary>
+      <ul>
+        <li>One-year fiscal cycle</li>
+        <li>Initial share capital returned in full</li>
+        <li>70% → Capital Pool (shared by shareholders)</li>
+        <li>30% → Effort Pool (based on guaranteed borrowers)</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- ADMIN GUIDELINES -->
+    <!-- ========================= -->
+    <details>
+      <summary>🛠 Admin Operational Guidelines</summary>
+      <ul>
+        <li>Monitor cash-on-hand daily</li>
+        <li>Approve all registrations</li>
+        <li>Reset button used only at fiscal year end</li>
+        <li>Digital receipts serve as official records</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- VISION -->
+    <!-- ========================= -->
+    <details>
+      <summary>🌱 Vision</summary>
+      <p>
+        To create a community where borrowers become future lenders, building
+        capital, discipline, and opportunity for others.
+      </p>
+    </details>
+
+    <!-- ========================= -->
+    <!-- MISSION -->
+    <!-- ========================= -->
+    <details>
+      <summary>🎯 Mission</summary>
+      <ul>
+        <li>Empower members through accessible credit</li>
+        <li>Promote accountability via guarantor system</li>
+        <li>Ensure fair and sustainable profit sharing</li>
+        <li>Educate users for financial independence</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- CORE VALUES -->
+    <!-- ========================= -->
+    <details>
+      <summary>💙 Core Values (The WeeLend Way)</summary>
+      <ul>
+        <li><strong>Integrity</strong> – Transparent tracking and receipts</li>
+        <li><strong>Growth</strong> – One-year financial discipline cycle</li>
+        <li><strong>Support</strong> – Compassion during hardship</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- BY-LAWS -->
+    <!-- ========================= -->
+    <details>
+      <summary>📜 By-Laws Summary</summary>
+      <ul>
+        <li>Membership approved by Admin</li>
+        <li>Shares fund the lending pool</li>
+        <li>All loans require guarantors</li>
+        <li>Profit distributed yearly</li>
+        <li>Admin may amend policies</li>
+      </ul>
+    </details>
+
+    <button class="back-btn" id="member-info-back-btn">← Back</button>
+
+  </div>
+
+</section>
+
+
+<!-- ============================= -->
+<!-- MEMBER: EDIT PROFILE PAGE -->
+<!-- ============================= -->
+<section id="page-member-profile" class="page">
+  <button class="back-btn" data-back="member">⬅ Back</button>
+
+  <div class="profile-card">
+
+    <h2>✏️ Edit Profile</h2>
+
+<div class="profile-pic-wrapper">
+  <div class="avatar-container">
+    <img id="member-profile-img" src="/default-avatar.png" class="profile-img" />
+
+    <!-- Camera Upload Button -->
+    <label for="member-profile-image-input" class="camera-btn">
+      📷
+    </label>
+
+    <input
+      type="file"
+      id="member-profile-image-input"
+      accept="image/*"
+      hidden
+    />
+  </div>
+
+  <small>Tap camera to change photo</small>
+</div>
+
+    <div class="modal-form-group">
+      <label>Full Name</label>
+      <input id="member-profile-fullname" type="text" disabled />
+    </div>
+
+    <div class="modal-form-group">
+      <label>Email</label>
+      <input id="member-profile-email" type="email" disabled />
+    </div>
+
+    <div class="modal-form-group">
+      <label>Contact Number</label>
+      <input id="member-profile-contact" type="text" placeholder="Optional" />
+    </div>
+
+    <div class="modal-form-group">
+      <label>Address</label>
+      <textarea id="member-profile-address" placeholder="Enter address"></textarea>
+    </div>
+
+    
+    <button id="member-profile-save-btn">Save Changes</button>
+
+    <p id="member-profile-message"></p>
+    <button id="member-theme-settings-btn" class="settings-btn">
+  🎨 Theme Settings
+</button>
+
+<hr />
+
+<h3>🔐 Change Password</h3>
+
+<div class="modal-form-group">
+  <label>Current Password</label>
+  <div class="password-wrapper">
+    <input id="member-current-password" type="password" />
+    <button type="button" id="toggle-member-current-password" class="eye-btn">👁</button>
+  </div>
+</div>
+
+<div class="modal-form-group">
+  <label>New Password</label>
+  <div class="password-wrapper">
+    <input id="member-new-password" type="password" />
+    <button type="button" id="toggle-member-new-password" class="eye-btn">👁</button>
+  </div>
+</div>
+
+<button id="member-change-password-btn">Change Password</button>
+<p id="member-password-message"></p>
+
+  </div>
+</section>
+
+
+<!-- ===================================== -->
+<!-- LOAN AGREEMENT MODAL -->
+<!-- ===================================== -->
+<div id="loan-agreement-modal" class="modal">
+  <div class="modal-content">
+    <h3>Loan Agreement</h3>
+
+    <div id="loan-agreement-summary" class="agreement-box"></div>
+
+    <p class="agreement-note">
+      By clicking <strong>I Agree & Submit</strong>, you confirm that you
+      understand and accept the loan terms.
+    </p>
+
+    <div class="modal-actions">
+      <button id="loan-agreement-cancel-btn">Cancel</button>
+      <button id="loan-agreement-confirm-btn" class="primary">
+        I Agree & Submit
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================================== -->
+<!-- ⚠️ BORROWER LOAN AGREEMENT MODAL -->
+<!-- Required by borrower navigation & actions -->
+<!-- DO NOT DEDUPE WITH MEMBER VERSION -->
+<!-- ===================================== -->
+<div id="loan-agreement-modal-borrower" class="modal">
+  <div class="modal-content card">
+    <span class="close-button" id="loan-agreement-modal-close">&times;</span>
+
+    <h3>📄 Loan Agreement</h3>
+
+    <div id="loan-agreement-details"></div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+      <button id="cancel-loan-agreement" type="button">
+        Cancel
+      </button>
+      <button id="confirm-loan-agreement" type="button">
+        I Agree & Submit Loan
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- BORROWER DASHBOARD -->
+<section id="page-dashboard-borrower" class="page dashboard">
+
+  <div class="dashboard-scroll">
+
+    <!-- Logo -->
+    <div class="auth-logo">
+      <img src="/weelend-logo.png" alt="WeeLend Logo" />
+    </div>
+
+    <!-- Title -->
+    <h2 class="borrower-dashboard-title">
+      Welcome, <span id="borrower-name-display">Borrower</span>!
+    </h2>
+
+    <!-- Borrower Stats -->
+    <div class="borrower-stats-container member-stats-container">
+
+      <div class="card stat-card">
+        <h3>Your Current Loan Limit</h3>
+        <p class="amount" id="borrower-loan-limit-display">₱0</p>
+        <span class="label">Maximum amount you are eligible to borrow.</span>
+      </div>
+
+      <div class="card stat-card">
+        <h3>Guarantor Status</h3>
+        <p class="amount" id="borrower-guarantor-status">None</p>
+        <span class="label" id="borrower-guarantor-details">
+          No guarantor for your active loan.
+        </span>
+      </div>
+
+      <div class="card stat-card">
+        <h3>Your Current Loan</h3>
+        <p class="amount" id="borrower-current-loan-amount">₱0</p>
+        <span class="label">
+          Due Date: <span id="borrower-current-loan-due-date">N/A</span>
+        </span>
+        <span class="label">
+          Status: <span id="borrower-current-loan-status">No active loan</span>
+        </span>
+      </div>
+
+    </div>
+
+<!-- 💰 Request Loan -->
+<button
+  id="borrower-request-loan-btn"
+  class="request-loan-btn"
+>
+  💰 Request Loan
+</button>
+
+    <!-- Dynamic Content -->
+    <div id="borrower-section-content"></div>
+
+  </div>
+
+</section>
+
+<!-- ============================= -->
+<!-- BORROWER: LOAN HISTORY PAGE -->
+<!-- ============================= -->
+<section id="page-borrower-history" class="page">
+  <button class="back-btn" data-back="borrower">⬅ Back</button>
+
+  <h2>📖 Loan History</h2>
+
+  <div id="borrower-history-content"></div>
+</section>
+
+<!-- ============================= -->
+<!-- BORROWER: LOAN DETAILS PAGE -->
+<!-- ============================= -->
+<section id="page-borrower-loan-details" class="page">
+  <button class="back-btn" data-back="borrower-history">⬅ Back</button>
+
+  <h2>📄 Loan Details</h2>
+
+  <div id="borrower-loan-details-summary"></div>
+
+  <h3>💸 Payment History</h3>
+  <div id="borrower-loan-payment-history"></div>
+</section>
+
+<!-- ============================= -->
+<!-- BORROWER: INFO / OBLIGATIONS PAGE -->
+<!-- ============================= -->
+<section class="page" id="page-borrower-info">
+
+  <div class="info-page-container">
+
+    <h2>Borrower Code of Conduct & Rules</h2>
+
+    <p>
+      Welcome to WeeLend. By applying for a loan, you are partnering with members
+      who pooled their savings to support your financial needs. Follow these rules
+      to build trust and qualify for future opportunities.
+    </p>
+
+    <!-- ========================= -->
+    <!-- ELIGIBILITY -->
+    <!-- ========================= -->
+    <details open>
+      <summary>📝 Eligibility & Registration</summary>
+      <ul>
+        <li>Register using a valid email address.</li>
+        <li>Status remains <strong>Pending</strong> until Admin approval.</li>
+        <li>Government ID upload is required.</li>
+        <li>Terms & Conditions must be accepted before loan processing.</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- GUARANTOR -->
+    <!-- ========================= -->
+    <details>
+      <summary>🤝 The Guarantor System</summary>
+      <ul>
+        <li>Every loan must have a Member or Admin guarantor.</li>
+        <li>Your guarantor monitors your repayment progress.</li>
+        <li>Missed payments affect your guarantor’s Effort record.</li>
+        <li>Maintain good communication with your guarantor.</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- LOAN TERMS -->
+    <!-- ========================= -->
+    <details>
+      <summary>💳 Loan Terms & Interest</summary>
+      <ul>
+        <li>Loan range: ₱1,000 – ₱100,000</li>
+        <li>Interest rate: 10% per month</li>
+        <li>Payment options:
+          <ul>
+            <li>Once monthly (30th)</li>
+            <li>Semi-monthly (15th & 30th)</li>
+          </ul>
+        </li>
+        <li>Borrowers must track due dates via dashboard.</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- PENALTIES -->
+    <!-- ========================= -->
+    <details>
+      <summary>⚠️ Penalties & Late Fees</summary>
+      <ul>
+        <li>3% penalty applied immediately after due date.</li>
+        <li>Penalty increases to 5% after 15 days unpaid.</li>
+        <li>Only Admin may approve late fee waivers.</li>
+        <li>Waivers depend on payment history and hardship review.</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- PAYMENTS -->
+    <!-- ========================= -->
+    <details>
+      <summary>🧾 Payments & Digital Receipts</summary>
+      <ul>
+        <li>All payments generate official digital receipts.</li>
+        <li>Receipts include:
+          <ul>
+            <li>Principal</li>
+            <li>Interest</li>
+            <li>Late fees (if any)</li>
+          </ul>
+        </li>
+        <li>Keep receipts for your personal records.</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- BECOMING A MEMBER -->
+    <!-- ========================= -->
+    <details>
+      <summary>🚀 Path to Becoming a Lender</summary>
+      <ul>
+        <li>Consistent on-time payments improve eligibility.</li>
+        <li>Good standing borrowers may be prioritized for membership.</li>
+        <li>Members earn from Capital and Effort pools.</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- DISQUALIFICATION -->
+    <!-- ========================= -->
+    <details>
+      <summary>❌ Grounds for Disqualification</summary>
+      <ul>
+        <li>False registration information</li>
+        <li>Repeated missed payments without communication</li>
+        <li>Fraudulent activity within the app</li>
+      </ul>
+    </details>
+
+    <button class="back-btn" id="borrower-info-back-btn">← Back</button>
+
+  </div>
+
+</section>
+
+<!-- ============================= -->
+<!-- BORROWER: EDIT PROFILE PAGE -->
+<!-- ============================= -->
+<section id="page-borrower-profile" class="page">
+  <button class="back-btn" data-back="borrower">⬅ Back</button>
+
+  <div class="profile-card">
+
+    <h2>✏️ Edit Profile</h2>
+
+<div class="profile-pic-wrapper">
+  <div class="avatar-container">
+    <img id="borrower-profile-img" src="/default-avatar.png" class="profile-img" />
+
+    <!-- Camera Upload Button -->
+    <label for="borrower-profile-image-input" class="camera-btn">
+      📷
+    </label>
+
+    <input
+      type="file"
+      id="borrower-profile-image-input"
+      accept="image/*"
+      hidden
+    />
+  </div>
+
+  <small>Tap camera to change photo</small>
+</div>
+
+    <div class="modal-form-group">
+      <label>Full Name</label>
+      <input id="borrower-profile-fullname" type="text" disabled />
+    </div>
+
+    <div class="modal-form-group">
+      <label>Email</label>
+      <input id="borrower-profile-email" type="email" disabled />
+    </div>
+
+    <div class="modal-form-group">
+      <label>Contact Number</label>
+      <input id="borrower-profile-contact" type="text" placeholder="Optional" />
+    </div>
+
+    <div class="modal-form-group">
+      <label>Address</label>
+      <textarea id="borrower-profile-address" placeholder="Enter address"></textarea>
+    </div>
+
+    <button id="borrower-profile-save-btn">Save Changes</button>
+
+    <p id="borrower-profile-message"></p>
+<button id="borrower-theme-settings-btn" class="settings-btn">
+  🎨 Theme Settings
+</button>
+
+    <hr />
+
+<h3>🔐 Change Password</h3>
+
+<div class="modal-form-group">
+  <label>Current Password</label>
+  <div class="password-wrapper">
+    <input id="borrower-current-password" type="password" />
+    <button type="button" id="toggle-borrower-current-password" class="eye-btn">👁</button>
+  </div>
+</div>
+
+<div class="modal-form-group">
+  <label>New Password</label>
+  <div class="password-wrapper">
+    <input id="borrower-new-password" type="password" />
+    <button type="button" id="toggle-borrower-new-password" class="eye-btn">👁</button>
+  </div>
+</div>
+
+<button id="borrower-change-password-btn">Change Password</button>
+<p id="borrower-password-message"></p>
+
+  </div>
+</section>
+
+<!-- ============================= -->
+<!-- 🧾 PA-SWIPE CONTRACTS PAGE -->
+<!-- (shared by member + borrower) -->
+<!-- ============================= -->
+<section id="page-pa-swipe-contracts" class="page">
+
+    <button id="contracts-back-btn" class="back-btn">⬅ Back</button>
+
+  <div id="pa-swipe-contracts-root"></div>
+
+</section>
+
+<!-- ============================= -->
+<!-- 🛍️ Marimar’s Bazaar (Shop Home) -->
+<!-- ============================= -->
+<section id="page-shop" class="page">
+  <div class="dashboard-scroll">
+    <h2 style="text-align:center;">🛍️ Marimar’s Bazaar</h2>
+    <p style="text-align:center; margin-top:6px; opacity:.85;">
+      Choose a section to continue
+    </p>
+
+    <div class="shop-cards">
+<div class="card shop-card" id="shop-card-pa-swipe">
+  <h3>📲 MLF Easy Installments</h3>
+  <p>
+    Phones, appliances, etc.<br/>
+    3/6/9/12-month installment plans
+  </p>
+  <small style="opacity:.75;">Tap to browse items</small>
+</div>
+
+<div class="card shop-card" id="shop-card-grocery">
+  <h3>🛒 Marimar's Credit Cart</h3>
+  <p>
+    Grocery & department store credit.<br/>
+    Semi-monthly repayment.
+  </p>
+  <small style="opacity:.75;">Tap to browse</small>
+</div>
+
+<div class="card shop-card" id="shop-card-pa-benta">
+  <h3>🏪 Pa-benta Marketplace</h3>
+  <p>
+    Peer-to-peer member storefront.<br/>
+    Buyers contact sellers directly.
+  </p>
+  <small style="opacity:.75;">Tap to post/browse</small>
+</div>
+    </div>
+
+    <button class="back-btn" id="shop-back-btn">⬅ Back</button>
+  </div>
+</section>
+
+<!-- ============================= -->
+<!-- 🟦 Pa-Swipe Page -->
+<!-- ============================= -->
+<section id="page-pa-swipe" class="page">
+  <button class="back-btn" id="pa-swipe-back-btn">⬅ Back</button>
+  <h2>📲 MLF Easy Installments</h2>
+
+  <div id="pa-swipe-content" class="card" style="padding:16px;">
+    <div id="pa-swipe-products"></div>
+  </div>
+</section>
+
+<!-- ============================= -->
+<!-- 🛒 Grocery Page (1-Month) -->
+<!-- ============================= -->
+<section id="page-grocery" class="page">
+  <button class="back-btn" id="grocery-back-btn">⬅ Back</button>
+  <h2>🛒 Marimar's Credit Cart</h2>
+
+  <div id="grocery-content" class="card" style="padding:16px;">
+    <p>Coming next: grocery product grid + 1-month checkout.</p>
+  </div>
+</section>
+
+<!-- ============================= -->
+<!-- 🟩 Pa-Benta Page -->
+<!-- ============================= -->
+<section id="page-marketplace" class="page">
+  <button class="back-btn" id="marketplace-back-btn">⬅ Back</button>
+  <h2>🏪 Pa-benta Marketplace</h2>
+  <div id="marketplace-content" class="card" style="padding:16px;">
+    <p>Coming next: listings + create post form + admin approval.</p>
+  </div>
+</section>
+
+    <!-- ADMIN DASHBOARD -->
+    <section id="page-dashboard-admin" class="page">
+      <div id="admin-dashboard-layout">
+
+        <aside id="admin-sidebar">
+      <h3>Admin Navigation</h3>
+<nav id="admin-nav-links">
+  <button id="overview-tab" class="tab-button active">Overview</button>
+
+  <!-- 🏦 COOP GROUP -->
+  <div class="nav-group">
+    <button class="nav-group-header" data-group="coop">
+      🏦 Coop <span class="chevron">▾</span>
+    </button>
+    <div class="nav-group-items" data-group-items="coop">
+      <button id="pending-users-tab" class="tab-button">Pending Users</button>
+      <button id="approved-users-tab" class="tab-button">Approved Members</button>
+      <button id="approved-borrowers-tab" class="tab-button">Approved Borrowers</button>
+      <button id="pending-loan-requests-tab" class="tab-button">Loan Requests</button>
+      <button id="all-loans-tab" class="tab-button">All Loans</button>
+      <button id="repayments-tab" class="tab-button">Repayments</button>
+      <button id="payment-settings-tab" class="tab-button">💳 Payment Settings</button>
+    </div>
+  </div>
+
+  <!-- 📲 MLF EASY INSTALLMENTS GROUP -->
+  <div class="nav-group">
+    <button class="nav-group-header" data-group="mlf">
+      📲 MLF Easy Installments <span class="chevron">▾</span>
+    </button>
+    <div class="nav-group-items" data-group-items="mlf">
+      <button id="pa-swipe-manager-tab" class="tab-button">🛒 Manager</button>
+      <button id="pa-swipe-requests-tab" class="tab-button">🧾 Requests</button>
+      <button id="pa-swipe-collections-tab" class="tab-button">💳 Collections</button>
+      <button id="pa-swipe-contracts-admin-tab" class="tab-button">🧾 Contracts</button>
+    </div>
+  </div>
+
+  <!-- 🛒 MARIMAR'S CREDIT CART GROUP (built next) -->
+  <div class="nav-group">
+    <button class="nav-group-header" data-group="creditcart">
+      🛒 Marimar's Credit Cart <span class="chevron">▾</span>
+    </button>
+    <div class="nav-group-items" data-group-items="creditcart">
+      <p class="nav-group-placeholder">Coming soon</p>
+    </div>
+  </div>
+
+  <!-- 🏪 PA-BENTA MARKETPLACE GROUP (built after) -->
+  <div class="nav-group">
+    <button class="nav-group-header" data-group="pabenta">
+      🏪 Pa-benta Marketplace <span class="chevron">▾</span>
+    </button>
+    <div class="nav-group-items" data-group-items="pabenta">
+      <p class="nav-group-placeholder">Coming soon</p>
+    </div>
+  </div>
+</nav>
+    </aside>
+
+    <div id="admin-main-content">
+      <h2 class="admin-panel-title">
+        <img src="/weelend-logo.png" class="dashboard-logo" />
+        Weelend Admin Panel
+      </h2>
+      <div id="admin-section-content"></div>
+      <p id="admin-message"></p>
+    </div>
+
+  </div>
+</section>
+
+</main>
+
+<!-- ============================== -->
+<!-- 🌐 GLOBAL MEMBER BOTTOM NAV -->
+<!-- ============================== -->
+<nav class="bottom-nav member-nav" id="member-bottom-nav" style="display:none;">
+  <button class="nav-btn" data-target="home">
+    <span class="icon">🏠</span>
+    <span class="label">Home</span>
+  </button>
+
+  <button class="nav-btn" data-target="history">
+    <span class="icon">📖</span>
+    <span class="label">History</span>
+  </button>
+
+  <div class="nav-center-gap"></div>
+
+  <button class="nav-btn" data-target="info">
+    <span class="icon">📜</span>
+    <span class="label">Info</span>
+  </button>
+
+  <button class="nav-btn" data-target="profile">
+    <span class="icon">✏️</span>
+    <span class="label">Profile</span>
+  </button>
+</nav>
+
+<!-- ============================== -->
+<!-- 🌐 GLOBAL BORROWER BOTTOM NAV -->
+<!-- ============================== -->
+<nav class="bottom-nav borrower-nav" id="borrower-bottom-nav" style="display:none;">
+  <button class="nav-btn" data-target="home">
+    <span class="icon">🏠</span>
+    <span class="label">Home</span>
+  </button>
+
+  <button class="nav-btn" data-target="history">
+    <span class="icon">📖</span>
+    <span class="label">History</span>
+  </button>
+
+  <div class="nav-center-gap"></div>
+
+  <button class="nav-btn" data-target="info">
+    <span class="icon">📜</span>
+    <span class="label">Info</span>
+  </button>
+
+  <button class="nav-btn" data-target="profile">
+    <span class="icon">✏️</span>
+    <span class="label">Profile</span>
+  </button>
+</nav>
+
+
+  <div id="collection-modal" class="modal">
+      <div class="modal-content card">
+        <span class="close-button" id="collection-modal-close">&times;</span>
+        <h3>Collect Share</h3>
+        <p>Collecting share for: <span id="modal-member-name"></span></p>
+
+        <!-- NEW: Display Member's Monthly Commitment -->
+        <div class="modal-form-group">
+          <label>Monthly Commitment:</label>
+          <span id="modal-monthly-commitment-display" style="font-weight: bold;">₱0</span>
+          <button id="modal-set-to-commitment-btn" class="small-button" style="margin-left: 10px;">Set 1 Month</button>
+        </div>
+
+        <div class="modal-form-group">
+          <label for="modal-months-input">Number of Share Commitment:</label>
+          <input type="number" id="modal-months-input" value="1" min="1" max="12" />
+        </div>
+        <div class="modal-form-group">
+          <label for="modal-month-select">For Month:</label>
+          <select id="modal-month-select"></select>
+        </div>
+        <div class="modal-form-group">
+          <label for="modal-year-input">For Year:</label>
+          <input type="number" id="modal-year-input" />
+        </div>
+        <button id="modal-collect-confirm-btn">Confirm Collection</button>
+      </div>
+    </div>
+
+    <!-- Receipt Modal -->
+    <div id="receipt-modal" class="modal">
+      <div class="modal-content card">
+        <span class="close-button" id="receipt-modal-close">&times;</span>
+        <h3>Collection Receipt</h3>
+        <pre id="receipt-content" class="receipt-text"></pre>
+        <button id="copy-receipt-btn">Copy to Clipboard</button>
+      </div>
+    </div>
+
+    <!-- PHASE 5 ADDITION: Loan Application Modal -->
+<div id="loan-application-modal" class="modal">
+  <div class="modal-content card">
+    <span class="close-button" id="loan-application-modal-close">&times;</span>
+    <h3>Request a New Loan</h3>
+    <form id="loan-application-form" class="loan-application-form">
+<!-- 💰 Loan Amount Slider -->
+<div class="modal-form-group">
+  <label>
+    Loan Amount:
+    <strong id="loan-amount-display">₱1,000</strong>
+  </label>
+
+  <input
+    type="range"
+    id="loan-amount-slider"
+    min="1000"
+    step="1000"
+    value="1000"
+  />
+
+  <p class="loan-limit-display">
+    Min: ₱1,000 |
+    Max: <span id="loan-amount-max">₱0</span>
+  </p>
+</div>
+
+<!-- 📅 Repayment Months Slider -->
+<div class="modal-form-group">
+  <label>
+    Repayment Months:
+    <strong id="loan-months-display">1</strong>
+  </label>
+
+  <input
+    type="range"
+    id="loan-months-slider"
+    min="1"
+    max="10"
+    step="1"
+    value="1"
+  />
+</div>
+
+<!-- 📊 Live Preview -->
+<div class="modal-form-group loan-preview">
+  <p>Interest: <strong id="loan-interest-preview">₱0</strong></p>
+  <p>Total Payable: <strong id="loan-total-preview">₱0</strong></p>
+</div>
+
+      <div class="modal-form-group">
+        <label for="loan-purpose-select">Loan Purpose:</label>
+        <select id="loan-purpose-select" required>
+          <option value="" disabled selected>Select a purpose</option>
+          <option value="education">Education</option>
+          <option value="medical">Medical Emergency</option>
+          <option value="business">Small Business Capital</option>
+          <option value="personal">Personal Expenses</option>
+          <option value="home-improvement">Home Improvement</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+
+      <!-- ⭐ INSERT THE NEW PAYMENT SCHEDULE FORM GROUP HERE ⭐ -->
+      <div class="modal-form-group">
+        <label for="payment-schedule-select">Payment Schedule:</label>
+        <select id="payment-schedule-select" required>
+          <option value="monthly">Monthly</option>
+          <option value="15-30" selected>Semi-Monthly</option> <!-- Default to semi-monthly, or adjust as needed -->
+        </select>
+      </div>
+      <!-- ⭐ END OF NEW FORM GROUP ⭐ -->
+
+      <!-- PHASE 5 ADDITION: Select Guarantor Field -->
+      <div class="modal-form-group">
+        <label for="guarantor-select">Select a Guarantor (Optional):</label>
+        <select id="guarantor-select">
+          <!-- Approved members (and self-guarantee) will be dynamically loaded here -->
+        </select>
+      </div>
+
+      <!-- Part 3: Document Uploads will go here -->
+      <div class="modal-form-group">
+        <label for="id-document-upload">Upload Valid ID (e.g., Passport, Driver's License):</label>
+        <input type="file" id="id-document-upload" accept="image/*,.pdf" required />
+      </div>
+      <div class="modal-form-group">
+        <label for="coe-document-upload">Upload Certificate of Employment (COE) or Proof of Income (Optional):</label>
+      </div>
+
+      <button type="submit" id="submit-loan-request-btn">Submit Loan Request</button>
+      <p id="loan-request-message" style="color: red;"></p>
+    </form>
+  </div>
+</div>
+
+<!-- 🎨 Theme Picker Modal (Unified) -->
+<div id="theme-modal" class="modal">
+  <div class="modal-content card theme-modal">
+    <h3>Choose Theme</h3>
+
+    <div class="theme-grid">
+      <button type="button" data-theme="purple">💜 Purple</button>
+      <button type="button" data-theme="navy">🌊 Navy</button>
+      <button type="button" data-theme="pink">🌸 Pink</button>
+      <button type="button" data-theme="orange">🟧 Orange</button>
+      <button type="button" data-theme="aqua">💎 Aqua</button>
+      <button type="button" data-theme="black">🖤 Black</button>
+    </div>
+
+    <button type="button" id="close-theme-modal">Close</button>
+  </div>
+</div>
+
+<!-- 🔐 Role Confirmation Modal (Admin Approve) -->
+<div id="role-confirm-modal" class="modal">
+  <div class="modal-content card">
+    <span id="role-confirm-close-btn" class="close-button">&times;</span>
+
+    <h3>Confirm User Role</h3>
+
+    <p><strong>Name:</strong> <span id="role-confirm-name"></span></p>
+    <p><strong>Email:</strong> <span id="role-confirm-email"></span></p>
+
+    <div class="modal-form-group">
+      <label>Select Role Before Approval:</label>
+      <select id="role-confirm-select">
+        <option value="member">Member</option>
+        <option value="borrower">Borrower</option>
+      </select>
+    </div>
+
+    <button id="role-confirm-approve-btn" class="request-loan-btn">
+      ✅ Confirm & Approve
+    </button>
+  </div>
+</div>
+
+<!-- 🔁 Change Role Modal (Approved Users) -->
+<div id="change-role-modal" class="modal">
+  <div class="modal-content card">
+    <span id="change-role-close-btn" class="close-button">&times;</span>
+
+    <h3>Change User Role</h3>
+
+    <p><strong>Name:</strong> <span id="change-role-name"></span></p>
+    <p><strong>Email:</strong> <span id="change-role-email"></span></p>
+    <p><strong>Current Role:</strong> <span id="change-role-current-role"></span></p>
+
+    <div class="modal-form-group">
+      <label>Select New Role:</label>
+      <select id="change-role-select">
+        <option value="member">Member</option>
+        <option value="borrower">Borrower</option>
+      </select>
+    </div>
+
+    <button id="change-role-confirm-btn" class="request-loan-btn">
+      ✅ Confirm Change
+    </button>
+  </div>
+</div>
+
+<!-- 🛍️ Marimar's Bazaar – Terms & Conditions Modal -->
+<div id="shop-terms-modal" class="modal">
+  <div class="modal-content card">
+    <span class="close-button" id="shop-terms-close">&times;</span>
+
+<h3 style="text-align:center;">🛍️ Marimar's Bazaar</h3>
+<p style="text-align:center; margin-top:6px; font-weight:600;">
+  Terms & Conditions
+</p>
+
+<div style="max-height:240px; overflow:auto; margin-top:12px; padding:12px; border:1px solid rgba(0,0,0,0.08); border-radius:10px;">
+  <p style="margin:0 0 10px 0;">
+    By using Marimar's Bazaar (MLF Easy Installments / Marimar's Credit Cart / Pa-benta Marketplace), you agree that:
+  </p>
+  <ul style="margin:0; padding-left:18px; line-height:1.45;">
+    <li>MLF Easy Installments and Marimar's Credit Cart purchases are under a separate installment contract (not a cooperative loan).</li>
+    <li>Repayment terms vary by product and are shown before purchase.</li>
+    <li>Affiliate earnings are granted only for successful/approved transactions.</li>
+    <li>Pa-benta Marketplace listings are subject to admin approval.</li>
+    <li>Users are responsible for accurate contact details in Pa-benta listings.</li>
+  </ul>
+      <p style="margin:10px 0 0 0; font-size:12px; opacity:.75;">
+        (We can replace this text with your final legal terms later.)
+      </p>
+    </div>
+
+    <label style="display:flex; gap:10px; align-items:center; margin-top:14px;">
+      <input type="checkbox" id="shop-terms-checkbox" />
+      <span>I agree with the terms and conditions</span>
+    </label>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
+      <button id="shop-terms-cancel">Cancel</button>
+      <button id="shop-terms-continue" class="request-loan-btn" disabled>
+        Continue
+      </button>
+    </div>
+  </div>
+</div>
+
+  <script type="module" src="/src/main.ts"></script>
+
+  <!-- 🛍️ WeeLend Shop – Coming Soon Modal -->
+<div id="shop-coming-soon-modal" class="modal">
+  <div class="modal-content card">
+    <span class="close-button" id="shop-coming-soon-close">&times;</span>
+
+    <h3 style="text-align:center;">🛍️ WeeLend Shop</h3>
+
+    <p style="text-align:center; margin-top:12px;">
+      🚧 <strong>Coming Soon!</strong><br /><br />
+      We’re preparing something exciting for you.<br />
+      Stay tuned!
+    </p>
+
+    <div style="text-align:center; margin-top:16px;">
+      <button id="shop-coming-soon-ok">Got it 👍</button>
+    </div>
+  </div>
+</div>
+
+  <!-- 🛍️ Floating Shop Button -->
+<button
+  id="shop-fab"
+  class="shop-fab"
+  title="WeeLend Shop"
+  style="display:none;"
+>
+  🛍️
+</button>
+
+</body>
+</html>

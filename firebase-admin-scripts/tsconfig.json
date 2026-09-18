@@ -1,0 +1,14 @@
+{
+      "compilerOptions": {
+        "target": "es2017", // This is key: targets a modern JavaScript version
+        "module": "commonjs",
+        "outDir": "./dist",  // Compiled JavaScript will go into a 'dist' folder
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true, // This is crucial to ignore errors in node_modules definitions
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true // Required for 'require(serviceAccountPath)' if it's a JSON file
+      },
+      "include": ["./reconcileFunds.ts"], // Only compile your script, not the whole node_modules
+      "exclude": ["node_modules"]
+    }
