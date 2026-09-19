@@ -11,6 +11,8 @@ import {
 import { auth, db } from "../firebaseConfig";
 import { calcPaSwipePricing, TERM_OPTIONS, DEFAULT_DOWNPAYMENT_RATE } from "../utils/paSwipeCalc";
 import { createPaSwipeRequest } from "../services/paSwipeRequestService";
+import { loadCreditCartPage } from "./creditCart";
+import { loadPaBentaPage } from "./paBenta";
 
 let unsubscribePaSwipe: (() => void) | null = null;
 
@@ -24,8 +26,14 @@ export function initShopPage() {
     showPage("page-pa-swipe");
     loadPaSwipeProducts();
   });
-  paBenta?.addEventListener("click", () => showPage("page-marketplace"));
-  grocery?.addEventListener("click", () => showPage("page-grocery"));
+  paBenta?.addEventListener("click", () => {
+    showPage("page-marketplace");
+    loadPaBentaPage();
+  });
+  grocery?.addEventListener("click", () => {
+    showPage("page-grocery");
+    loadCreditCartPage();
+  });
 
   backBtn?.addEventListener("click", () => {
     showPage("page-dashboard-member"); // we'll make role-aware later

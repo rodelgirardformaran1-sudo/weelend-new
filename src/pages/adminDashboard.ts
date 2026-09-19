@@ -31,6 +31,11 @@ import { formatDueDate } from "../services/loanService"; // you already have thi
 import { loadRepaymentsUI } from "./repayments";
 import { initPaSwipeCollectionsAdmin } from "./paSwipeCollectionsAdmin";
 import { initPaSwipeContractsAdmin } from "./paSwipeContractsAdmin";
+import { initCreditCartRequestsAdmin } from "./creditCartRequestsAdmin";
+import { initCreditCartCollectionsAdmin } from "./creditCartCollectionsAdmin";
+import { initCreditCartContractsAdmin } from "./creditCartContractsAdmin";
+import { initPaBentaShopsAdmin } from "./paBentaShopsAdmin";
+import { initPaBentaListingsAdmin } from "./paBentaListingsAdmin";
 console.log("AUTH EMAIL:", getAuth().currentUser?.email);
 
 
@@ -70,6 +75,11 @@ let paSwipeCollectionsTabBtn: HTMLElement | null = null;
 if (!paSwipeRequestsTabBtn) { console.warn("🟡 paSwipeRequestsTabBtn not found — skipping setup."); }
 let globalLogoutBtn: HTMLElement | null = null;
 let paSwipeContractsAdminTabBtn: HTMLElement | null = null;
+let creditCartRequestsTabBtn: HTMLElement | null = null;
+let creditCartCollectionsTabBtn: HTMLElement | null = null;
+let creditCartContractsAdminTabBtn: HTMLElement | null = null;
+let pabentaShopsAdminTabBtn: HTMLElement | null = null;
+let pabentaListingsAdminTabBtn: HTMLElement | null = null;
 
 // Collection Modal elements
 let collectionModal: HTMLElement | null = null;
@@ -1478,6 +1488,11 @@ export async function initAdminDashboard() {
   paSwipeRequestsTabBtn = document.getElementById("pa-swipe-requests-tab");
   paSwipeCollectionsTabBtn = document.getElementById("pa-swipe-collections-tab");
   paSwipeContractsAdminTabBtn = document.getElementById("pa-swipe-contracts-admin-tab");
+  creditCartRequestsTabBtn = document.getElementById("credit-cart-requests-tab");
+creditCartCollectionsTabBtn = document.getElementById("credit-cart-collections-tab");
+creditCartContractsAdminTabBtn = document.getElementById("credit-cart-contracts-admin-tab");
+pabentaShopsAdminTabBtn = document.getElementById("pabenta-shops-admin-tab");
+pabentaListingsAdminTabBtn = document.getElementById("pabenta-listings-admin-tab");
   console.log("✅ paSwipeRequestsTabBtn found?", !!paSwipeRequestsTabBtn);
   globalLogoutBtn = document.getElementById("global-logout-btn");
 
@@ -1839,6 +1854,41 @@ paSwipeContractsAdminTabBtn?.addEventListener("click", () => {
   setActiveTab(paSwipeContractsAdminTabBtn!);
   autoCloseSidebar();
   initPaSwipeContractsAdmin(adminSectionContent!);
+});
+
+creditCartRequestsTabBtn?.addEventListener("click", () => {
+  if (isReceiptOpen) return;
+  setActiveTab(creditCartRequestsTabBtn!);
+  autoCloseSidebar();
+  initCreditCartRequestsAdmin(adminSectionContent!);
+});
+
+creditCartCollectionsTabBtn?.addEventListener("click", () => {
+  if (isReceiptOpen) return;
+  setActiveTab(creditCartCollectionsTabBtn!);
+  autoCloseSidebar();
+  initCreditCartCollectionsAdmin(adminSectionContent!);
+});
+
+creditCartContractsAdminTabBtn?.addEventListener("click", () => {
+  if (isReceiptOpen) return;
+  setActiveTab(creditCartContractsAdminTabBtn!);
+  autoCloseSidebar();
+  initCreditCartContractsAdmin(adminSectionContent!);
+});
+
+pabentaShopsAdminTabBtn?.addEventListener("click", () => {
+  if (isReceiptOpen) return;
+  setActiveTab(pabentaShopsAdminTabBtn!);
+  autoCloseSidebar();
+  initPaBentaShopsAdmin(adminSectionContent!);
+});
+
+pabentaListingsAdminTabBtn?.addEventListener("click", () => {
+  if (isReceiptOpen) return;
+  setActiveTab(pabentaListingsAdminTabBtn!);
+  autoCloseSidebar();
+  initPaBentaListingsAdmin(adminSectionContent!);
 });
 
 overviewTabBtn!.addEventListener("click", () => {

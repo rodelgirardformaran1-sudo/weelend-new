@@ -1,0 +1,37 @@
+{
+  "hash": "aa5c1141",
+  "configHash": "c830a728",
+  "lockfileHash": "2a1a84e5",
+  "browserHash": "f703ce60",
+  "optimized": {
+    "firebase/app": {
+      "src": "../../node_modules/firebase/app/dist/esm/index.esm.js",
+      "file": "firebase_app.js",
+      "fileHash": "5ef566fd",
+      "needsInterop": false
+    },
+    "firebase/auth": {
+      "src": "../../node_modules/firebase/auth/dist/esm/index.esm.js",
+      "file": "firebase_auth.js",
+      "fileHash": "a1316969",
+      "needsInterop": false
+    },
+    "firebase/firestore": {
+      "src": "../../node_modules/firebase/firestore/dist/esm/index.esm.js",
+      "file": "firebase_firestore.js",
+      "fileHash": "93f625de",
+      "needsInterop": false
+    },
+    "firebase/storage": {
+      "src": "../../node_modules/firebase/storage/dist/esm/index.esm.js",
+      "file": "firebase_storage.js",
+      "fileHash": "f2295885",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-OFVY3MGE": {
+      "file": "chunk-OFVY3MGE.js"
+    }
+  }
+}

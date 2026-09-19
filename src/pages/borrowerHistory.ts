@@ -4,6 +4,7 @@ import { db } from "../firebaseConfig";
 import type { User } from "firebase/auth";
 import { renderPaymentCards } from "./paymentCards";
 import { evaluateScheduleItem } from "../services/paSwipeRepaymentService";
+import { evaluateCreditCartScheduleItem } from "../services/creditCartRepaymentService";
 
 function formatDate(date: any): string {
   if (!date) return "N/A";
@@ -79,6 +80,43 @@ async function buildMLFInstallmentsSection(userId: string): Promise<string> {
   );
 
   return `<h3>📲 MLF Easy Installments</h3>${cards.join("")}`;
+}
+
+async function buildCreditCartSection(userId: string): Promise<string> {
+  const snap = await getDocs(query(collection(db, "creditCartAccounts"), where("userId", "==", userId)));
+  if (snap.empty) return `<h3>🛒 Marimar's Credit Cart</h3><p>No credit accounts yet.</p>`;
+
+  const cards = await Promise.all(snap.docs.map(async (d) => {
+    const acc = { id: d.id, ...(d.data() as any) };
+    const scheduleSnap = await getDocs(collection(db, "creditCartAccounts", acc.id, "schedule"));
+    const schedule = scheduleSnap.docs.map((s) => s.data() as any).sort((a, b) => (a.installmentNumber ?? 0) - (b.installmentNumber ?? 0));
+    const nextUnpaid = schedule.find((s) => !s.paid);
+    const categoryLabel = acc.category === "grocery" ? "Grocery" : "Department Store / Shopping Spree";
+
+    const statusBadge = acc.status === "completed"
+      ? `<span class="loan-badge completed">Completed</span>`
+      : `<span class="loan-badge active">Active</span>`;
+
+    let dueInfo = "";
+    if (nextUnpaid && acc.status !== "completed") {
+      const evaluation = evaluateCreditCartScheduleItem(nextUnpaid);
+      dueInfo = `
+        <p><strong>Next Due:</strong> ${formatDate(nextUnpaid.dueDate)}</p>
+        <p><strong>Installment ${nextUnpaid.installmentNumber} of ${acc.installmentCount}:</strong> ${peso(evaluation.remainingInstallment)}</p>
+        ${evaluation.lateFeeRemaining > 0 ? `<p style="color:#c0392b;"><strong>Late Fee:</strong> ${peso(evaluation.lateFeeRemaining)}</p>` : ""}
+      `;
+    }
+
+    return `
+      <div class="card">
+        <strong>${categoryLabel}</strong> ${statusBadge}
+        <div style="font-size:13px; opacity:.8;">Amount: ${peso(acc.amount)} • Term: ${acc.termMonths} month(s)</div>
+        ${dueInfo}
+      </div>
+    `;
+  }));
+
+  return `<h3>🛒 Marimar's Credit Cart</h3>${cards.join("")}`;
 }
 
 export async function loadBorrowerLoanHistory(user: User) {
@@ -170,6 +208,7 @@ export async function loadBorrowerLoanHistory(user: User) {
     // 📲 MLF EASY INSTALLMENTS
     // =====================
     html += await buildMLFInstallmentsSection(user.uid);
+      html += `<hr />` + await buildCreditCartSection(user.uid);
 
     // ✅ Render loan history first
     container.innerHTML = html;

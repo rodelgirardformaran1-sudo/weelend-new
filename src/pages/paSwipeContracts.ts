@@ -13,32 +13,6 @@ import {
   orderBy,
 } from "firebase/firestore";
 
-type PaSwipeContract = {
-  id: string;
-  userId: string;
-  userRole?: "member" | "borrower" | string;
-
-  productSnapshot?: {
-    title?: string;
-    category?: string;
-    imageUrl?: string;
-    srp?: number;
-  };
-
-  termMonths: number;
-  installmentCount: number;
-  downpayment: number;
-  installmentAmount: number;
-  remainingBalance: number;
-  interestRate?: number;
-
-  status: "awaiting_acceptance" | "accepted" | "declined" | "released" | string;
-  contractText?: string;
-
-  createdAt?: any;
-  acceptedAt?: any;
-};
-
 function formatMoney(n: number | undefined) {
   const v = Number(n || 0);
   return `₱${v.toLocaleString("en-PH", {
@@ -55,6 +29,10 @@ function downloadText(filename: string, text: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function contractCollectionFor(source: string) {
+  return source === "creditcart" ? "creditCartContracts" : "paSwipeContracts";
 }
 
 // ✅ Guards to prevent listener stacking
@@ -111,17 +89,15 @@ export async function renderPaSwipeContractsPage(container: HTMLElement) {
     return;
   }
 
-  const q = query(
-    collection(db, "paSwipeContracts"),
-    where("userId", "==", user.uid),
-    orderBy("createdAt", "desc")
-  );
+  const [paSwipeSnap, creditCartSnap] = await Promise.all([
+    getDocs(query(collection(db, "paSwipeContracts"), where("userId", "==", user.uid), orderBy("createdAt", "desc"))),
+    getDocs(query(collection(db, "creditCartContracts"), where("userId", "==", user.uid), orderBy("createdAt", "desc"))),
+  ]);
 
-  const snap = await getDocs(q);
-  const contracts: PaSwipeContract[] = snap.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as any),
-  }));
+  const contracts: any[] = [
+    ...paSwipeSnap.docs.map((d) => ({ id: d.id, source: "mlf", ...(d.data() as any) })),
+    ...creditCartSnap.docs.map((d) => ({ id: d.id, source: "creditcart", ...(d.data() as any) })),
+  ].sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
 
   if (contracts.length === 0) {
     stateEl.textContent = "No contracts found.";
@@ -132,14 +108,16 @@ export async function renderPaSwipeContractsPage(container: HTMLElement) {
 
   listEl.innerHTML = contracts
     .map((c) => {
-      const productName = c.productSnapshot?.title || "Item";
+      const productName = c.source === "creditcart"
+        ? (c.category === "grocery" ? "Grocery Credit" : "Department Store Credit")
+        : (c.productSnapshot?.title || "Item");
       const image = c.productSnapshot?.imageUrl || "";
 
       const contractText = c.contractText || "(Contract text not available.)";
       const canDecide = c.status === "awaiting_acceptance";
 
       return `
-        <div class="contract-card" data-id="${c.id}">
+        <div class="contract-card" data-id="${c.id}" data-source="${c.source}">
           <div class="contract-header">
             <div class="contract-left">
               ${image ? `<img class="contract-img lightbox-img" src="${image}" alt="${productName}" />` : ""}
@@ -192,6 +170,9 @@ export async function renderPaSwipeContractsPage(container: HTMLElement) {
       const contractId = card.getAttribute("data-id");
       if (!contractId) return;
 
+      const source = card.getAttribute("data-source") || "mlf";
+      const collectionName = contractCollectionFor(source);
+
       const textarea = card.querySelector(".contract-text") as HTMLTextAreaElement | null;
       const text = textarea?.value || "";
 
@@ -204,18 +185,17 @@ export async function renderPaSwipeContractsPage(container: HTMLElement) {
         }
 
         if (action === "download") {
-          downloadText(`WeeLend-PaSwipe-Contract-${contractId}.txt`, text);
+          downloadText(`WeeLend-Contract-${contractId}.txt`, text);
           return;
         }
 
         if (action === "accept") {
           btn.disabled = true;
-          await updateDoc(doc(db, "paSwipeContracts", contractId), {
+          await updateDoc(doc(db, collectionName, contractId), {
             status: "accepted",
             acceptedAt: serverTimestamp(),
           });
 
-          // refresh view
           const root = document.getElementById("pa-swipe-contracts-root");
           if (root) await renderPaSwipeContractsPage(root);
           return;
@@ -223,7 +203,7 @@ export async function renderPaSwipeContractsPage(container: HTMLElement) {
 
         if (action === "decline") {
           btn.disabled = true;
-          await updateDoc(doc(db, "paSwipeContracts", contractId), {
+          await updateDoc(doc(db, collectionName, contractId), {
             status: "declined",
           });
 

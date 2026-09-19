@@ -239,6 +239,81 @@ match /paSwipeContracts/{contractId} {
 
   allow delete: if false;
 }
+
+// =========================
+// 🛒 CREDIT CART REQUESTS
+// =========================
+match /creditCartRequests/{requestId} {
+  allow get, list: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+  allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+  allow update: if isAdmin();
+  allow delete: if false;
+}
+
+// =========================
+// 💳 CREDIT CART ACCOUNTS
+// =========================
+match /creditCartAccounts/{accountId} {
+  allow get, list: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+  allow create, update: if isAdmin();
+  allow delete: if false;
+
+  match /schedule/{scheduleId} {
+    allow get, list: if isAdmin()
+      || (isSignedIn() && request.auth.uid == get(/databases/$(database)/documents/creditCartAccounts/$(accountId)).data.userId);
+    allow create, update: if isAdmin();
+    allow delete: if false;
+  }
+}
+
+// =========================
+// 🧾 CREDIT CART CONTRACTS
+// =========================
+match /creditCartContracts/{contractId} {
+  allow get, list: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+  allow create: if isAdmin();
+  allow update: if isSignedIn()
+    && request.auth.uid == resource.data.userId
+    && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status", "acceptedAt"]);
+  allow delete: if false;
+}
+
+// =========================
+// 🏪 PA-BENTA SHOPS
+// =========================
+match /paBentaShops/{shopId} {
+  allow get, list: if isAdmin()
+    || (isSignedIn() && request.auth.uid == resource.data.ownerId)
+    || (isSignedIn() && resource.data.status == "approved");
+
+  allow create: if isSignedIn() && request.auth.uid == request.resource.data.ownerId;
+
+  allow update: if isAdmin()
+    || (isSignedIn()
+        && request.auth.uid == resource.data.ownerId
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["shopName", "shopDescription", "status", "totalListings", "totalViews"]));
+
+  allow delete: if false;
+}
+
+// =========================
+// 📦 PA-BENTA LISTINGS
+// =========================
+match /paBentaListings/{listingId} {
+  allow get, list: if isAdmin()
+    || (isSignedIn() && request.auth.uid == resource.data.ownerId)
+    || (isSignedIn() && resource.data.status == "approved");
+
+  allow create: if isSignedIn() && request.auth.uid == request.resource.data.ownerId;
+
+  allow update: if isAdmin()
+    || (isSignedIn()
+        && request.auth.uid == resource.data.ownerId
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["price", "stockStatus", "description"]));
+
+  allow delete: if false;
+}
+
     // =========================
     // 🚫 DEFAULT DENY
     // =========================
