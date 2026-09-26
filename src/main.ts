@@ -16,6 +16,16 @@ import { initTheme } from "./services/themeService";
 import { hasAcceptedShopTerms, acceptShopTerms } from "./services/shopConsentService";
 import { initShopPage } from "./pages/shop";
 import { initLightbox } from "./utils/lightbox";
+import { initInstallPrompt } from "./utils/installPrompt";
+import { initUpdateNudge } from "./utils/updateNudge";
+import { initAffiliateEntryPoints } from "./pages/affiliateEntry";
+import { initChatWidget, destroyChatWidget } from "./utils/chatWidget";
+import {
+  initGuarantorEntryPoint,
+  hasPendingGuarantorInvite,
+  initGuarantorActivationPage,
+  initGuarantorHomePage,
+} from "./pages/guarantorActivation";
 
 console.log("🔥 main.ts loaded");
 
@@ -253,6 +263,43 @@ document.getElementById("contracts-back-btn")?.addEventListener("click", () => {
   showPage(contractsReturnPageId);
 });
 
+// 📜 Agreements button inside sidebar — shows the exact terms the person
+// agreed to for every request they've submitted, complementing Contracts.
+document.getElementById("sidebar-agreements-btn")?.addEventListener("click", async () => {
+  // ✅ remember where to go back (reuses the same return-page tracking as
+  // the Contracts button above)
+  contractsReturnPageId =
+    currentRole === "borrower" ? "page-dashboard-borrower" : "page-dashboard-member";
+
+  closeAppSidebar();
+  showPage("page-my-agreements");
+
+  const mod = await import("./pages/myAgreements");
+  await mod.initMyAgreementsPage();
+});
+
+document.getElementById("agreements-back-btn")?.addEventListener("click", () => {
+  showPage(contractsReturnPageId);
+});
+
+// 🧾 Receipts button inside sidebar — every payment receipt (loan
+// repayments, share collections, MLF Easy Installment, Marimar's Credit
+// Cart) for the signed-in member/borrower, each downloadable as a PDF.
+document.getElementById("sidebar-receipts-btn")?.addEventListener("click", async () => {
+  contractsReturnPageId =
+    currentRole === "borrower" ? "page-dashboard-borrower" : "page-dashboard-member";
+
+  closeAppSidebar();
+  showPage("page-my-receipts");
+
+  const mod = await import("./pages/myReceipts");
+  await mod.initMyReceiptsPage();
+});
+
+document.getElementById("receipts-back-btn")?.addEventListener("click", () => {
+  showPage(contractsReturnPageId);
+});
+
 // Function to show a specific page
 export function showPage(pageId: string) {
   console.log("🧭 showPage CALLED WITH:", pageId);
@@ -274,47 +321,136 @@ showPage("page-login");
 
 // Initialize shop routing once
 initShopPage();
+initAffiliateEntryPoints();
 initLightbox();
+initInstallPrompt(); // 📲 "Add to Home Screen" nudge banner (mobile only)
+initUpdateNudge(); // 🔄 "Update available — tap to refresh" banner (fixes silent stale-iOS-PWA confusion)
+
+// 🛡️ Detect a ?guarantorInvite= link before the normal login/dashboard
+// routing below runs, so it can take over instead.
+initGuarantorEntryPoint();
 
 // ==========================
 // SIGN UP
 // ==========================
-const signupBtn = document.getElementById("signup-btn");
+const signupForm = document.getElementById("signup-form") as HTMLFormElement | null;
+const signupRoleInput = document.getElementById("signup-request-role") as HTMLInputElement | null;
+const rolePicker = document.getElementById("signup-role-picker");
 
-signupBtn?.addEventListener("click", async () => {
-  console.log("👉 Signup clicked");
+// --- 🎭 Role picker (big-card selector) ---
+rolePicker?.querySelectorAll<HTMLButtonElement>(".role-card").forEach((card) => {
+  card.addEventListener("click", () => {
+    rolePicker.querySelectorAll<HTMLButtonElement>(".role-card").forEach((c) => {
+      c.classList.remove("selected");
+      c.setAttribute("aria-checked", "false");
+    });
 
-  const fullNameInput = document.getElementById("signup-fullname") as HTMLInputElement;
-  const emailInput = document.getElementById("signup-email") as HTMLInputElement;
-  const passwordInput = document.getElementById("signup-password") as HTMLInputElement;
+    card.classList.add("selected");
+    card.setAttribute("aria-checked", "true");
+
+    if (signupRoleInput) signupRoleInput.value = card.dataset.role || "";
+  });
+});
+
+// --- 👁 Toggle signup password visibility ---
+const signupPasswordInput = document.getElementById("signup-password") as HTMLInputElement | null;
+const toggleSignupPasswordBtn = document.getElementById("toggle-signup-password");
+
+toggleSignupPasswordBtn?.addEventListener("click", () => {
+  if (!signupPasswordInput) return;
+  const isHidden = signupPasswordInput.type === "password";
+  signupPasswordInput.type = isHidden ? "text" : "password";
+});
+
+signupForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  console.log("👉 Signup submitted");
+
   const message = document.getElementById("signup-message") as HTMLElement;
+  message.textContent = "";
 
-  if (!fullNameInput.value || !emailInput.value || !passwordInput.value) {
-    message.textContent = "Please fill in all fields";
+  // Personal info
+  const firstNameInput = document.getElementById("signup-firstname") as HTMLInputElement;
+  const middleNameInput = document.getElementById("signup-middlename") as HTMLInputElement;
+  const lastNameInput = document.getElementById("signup-lastname") as HTMLInputElement;
+  const emailInput = document.getElementById("signup-email") as HTMLInputElement;
+  const phoneInput = document.getElementById("signup-phone") as HTMLInputElement;
+  const passwordInput = document.getElementById("signup-password") as HTMLInputElement;
+
+  // Address
+  const streetInput = document.getElementById("signup-address-street") as HTMLInputElement;
+  const barangayInput = document.getElementById("signup-address-barangay") as HTMLInputElement;
+  const cityInput = document.getElementById("signup-address-city") as HTMLInputElement;
+  const provinceInput = document.getElementById("signup-address-province") as HTMLInputElement;
+  const zipInput = document.getElementById("signup-address-zip") as HTMLInputElement;
+
+  // Emergency contact
+  const emergencyNameInput = document.getElementById("signup-emergency-name") as HTMLInputElement;
+  const emergencyRelationshipInput = document.getElementById("signup-emergency-relationship") as HTMLInputElement;
+  const emergencyPhoneInput = document.getElementById("signup-emergency-phone") as HTMLInputElement;
+
+  const requiredFields: [string, HTMLInputElement][] = [
+    ["First name", firstNameInput],
+    ["Last name", lastNameInput],
+    ["Email", emailInput],
+    ["Mobile number", phoneInput],
+    ["Password", passwordInput],
+    ["Street address", streetInput],
+    ["Barangay", barangayInput],
+    ["City/Municipality", cityInput],
+    ["Province", provinceInput],
+    ["ZIP code", zipInput],
+    ["Emergency contact name", emergencyNameInput],
+    ["Emergency contact relationship", emergencyRelationshipInput],
+    ["Emergency contact number", emergencyPhoneInput],
+  ];
+
+  const missing = requiredFields.find(([, input]) => !input.value.trim());
+  if (missing) {
+    message.textContent = `Please fill in: ${missing[0]}`;
+    message.style.color = "red";
+    return;
+  }
+
+  if (!signupRoleInput?.value) {
+    message.textContent = "Please choose whether you're signing up as a Member or Borrower.";
+    message.style.color = "red";
     return;
   }
 
   try {
-    const nameParts = fullNameInput.value.trim().split(" ");
-const firstName = nameParts[0];
-const lastName = nameParts.slice(1).join(" ") || "";
-const requestedRoleInput = document.getElementById("signup-request-role") as HTMLSelectElement;
+    await register(emailInput.value.trim(), passwordInput.value, {
+      firstName: firstNameInput.value.trim(),
+      middleName: middleNameInput.value.trim(),
+      lastName: lastNameInput.value.trim(),
+      phoneNumber: phoneInput.value.trim(),
+      role: signupRoleInput.value,
+      homeAddress: {
+        street: streetInput.value.trim(),
+        barangay: barangayInput.value.trim(),
+        city: cityInput.value.trim(),
+        province: provinceInput.value.trim(),
+        zip: zipInput.value.trim(),
+      },
+      emergencyContact: {
+        name: emergencyNameInput.value.trim(),
+        relationship: emergencyRelationshipInput.value.trim(),
+        phone: emergencyPhoneInput.value.trim(),
+      },
+    });
 
-console.log("Selected role:", requestedRoleInput.value); // Debug log
-
-await register(
-  emailInput.value,
-  passwordInput.value,
-  firstName,
-  lastName,
-  requestedRoleInput.value   // NEW argument
-);
-    message.textContent = `Account created successfully!`;
-    message.style.color = 'green';
+    message.textContent = "Account created successfully!";
+    message.style.color = "green";
+    signupForm.reset();
+    rolePicker?.querySelectorAll<HTMLButtonElement>(".role-card").forEach((c) => {
+      c.classList.remove("selected");
+      c.setAttribute("aria-checked", "false");
+    });
   } catch (err: any) {
-  console.error("Signup error:", err);
-  message.textContent = err.code || err.message;
-}
+    console.error("Signup error:", err);
+    message.textContent = err.code || err.message;
+    message.style.color = "red";
+  }
 });
 
 // ==========================
@@ -433,6 +569,16 @@ document.getElementById("borrower-info-back-btn")?.addEventListener("click", () 
 listenToAuthChanges(async (user: User | null) => {
   console.log("Auth state changed, user:", user ? user.email : null);
   const header = document.getElementById("app-header") as HTMLElement;
+
+  // 🛡️ A security-guarantor invite link takes over the whole routing
+  // flow — whether or not anyone is logged in yet — instead of the
+  // normal login/dashboard pages below.
+  if (hasPendingGuarantorInvite()) {
+    header.style.display = "none";
+    await initGuarantorActivationPage(user);
+    return;
+  }
+
 if (!user) {
   currentUid = null;
     // ✅ ROLE RESET (logout)
@@ -454,6 +600,7 @@ syncFabWithModals();
 if (borrowerNav) borrowerNav.style.display = "none";
 
 
+    destroyChatWidget();
     showPage('page-login');
     return;
   }
@@ -514,6 +661,8 @@ syncFabWithModals();
 const borrowerNav = document.getElementById("borrower-bottom-nav");
 if (borrowerNav) borrowerNav.style.display = "none";
 
+  initChatWidget(user.uid, profile.fullName || profile.email || "Admin", "admin");
+
   return;
 }
 
@@ -529,6 +678,8 @@ syncFabWithModals();
       initMemberDashboard(user); // Initialize the member dashboard AFTER showing the page
 
       if (memberNav) memberNav.style.display = "grid";
+
+      initChatWidget(user.uid, profile.fullName || profile.email || "Member", "member");
 
       return;
     }
@@ -546,6 +697,26 @@ syncFabWithModals();
   const borrowerNav = document.getElementById("borrower-bottom-nav");
   if (borrowerNav) borrowerNav.style.display = "grid";
 
+  initChatWidget(user.uid, profile.fullName || profile.email || "Borrower", "borrower");
+
+  return;
+}
+
+// 🛡️ Security guarantor — lightweight account, not a coop member/borrower.
+// No bottom nav, just their own status page (with a CTA to sign up as a
+// full member/borrower, since every guarantor is a warm lead for the coop).
+if (profile.role === "security_guarantor") {
+  document.body.classList.remove("admin-mode");
+  allowShopFab = false;
+  syncFabWithModals();
+
+  const memberNavEl = document.getElementById("member-bottom-nav");
+  if (memberNavEl) memberNavEl.style.display = "none";
+
+  const borrowerNavEl = document.getElementById("borrower-bottom-nav");
+  if (borrowerNavEl) borrowerNavEl.style.display = "none";
+
+  await initGuarantorHomePage(user);
   return;
 }
   }

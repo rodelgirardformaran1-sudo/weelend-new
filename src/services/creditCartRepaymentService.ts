@@ -2,6 +2,7 @@
 import { collection, doc, getDocs, runTransaction, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { computeCreditCartLateFee, daysPastDue, GRACE_DAYS } from "../utils/creditCartCalc";
+import { bumpCreditCartInterestCollected } from "./businessProfitService";
 
 const ACCOUNTS_COL = "creditCartAccounts";
 
@@ -74,5 +75,37 @@ export async function collectCreditCartPayment(params: { accountId: string; sche
       status: allPaidAfterThis ? "completed" : "active",
       lastPaymentAt: serverTimestamp(),
     });
+
+    // 🧾 Payment log — this product had no payment history recorded at
+    // all before now, so this is also what powers the "My Receipts" page.
+    const account = accountSnap.data() as any;
+
+    // 💰 Marimar's Credit Cart profit ledger — interest portion of this
+    // payment, pro-rated the same way as MLF Easy Installment: the
+    // interestAmount charged at approval time, spread proportionally
+    // across the account's totalPayable (principal + interest) as it
+    // gets paid down.
+    const interestAmountTotal = Number(account.interestAmount || 0);
+    const totalPayableTotal = Number(account.totalPayable || 0);
+    const interestPortionThisPayment =
+      totalPayableTotal > 0
+        ? Math.round((installmentPaidNow * (interestAmountTotal / totalPayableTotal)) * 100) / 100
+        : 0;
+
+    const ccPayRef = doc(collection(db, "creditCartPayments"));
+    tx.set(ccPayRef, {
+      accountId,
+      scheduleId,
+      userId: account.userId,
+      category: account.category || null,
+      installmentPaid: installmentPaidNow,
+      lateFeePaid: lateFeePaidNow,
+      totalPaid: amountPaid,
+      interestPortion: interestPortionThisPayment,
+      fullyPaid,
+      createdAt: serverTimestamp(),
+    });
+
+    bumpCreditCartInterestCollected(tx, interestPortionThisPayment);
   });
 }

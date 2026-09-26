@@ -79,6 +79,22 @@
   background-color: #000000;
 }
 
+/* 🍷 Burgundy Theme */
+[data-theme="burgundy"] {
+  --primary-dark-purple: #4a0e18;
+  --secondary-purple: #8a1538;
+  --accent-silver: #d8b4b8;
+  background-color: #1a0509;
+}
+
+/* 🌲 Dark Jungle Green Theme */
+[data-theme="jungle"] {
+  --primary-dark-purple: #1a2421;
+  --secondary-purple: #2f5233;
+  --accent-silver: #a8c3a0;
+  background-color: #0c110f;
+}
+
 /* --- Global Elements --- */
 body {
   margin: 0;
@@ -405,6 +421,7 @@ a:hover {
     padding: 20px;
     background-color: #ffffff;
     overflow-y: auto;
+    position: relative;
 }
 
 /* ✅ ADMIN SIDEBAR: collapse should remove layout space */
@@ -479,52 +496,111 @@ a:hover {
 }
 
 
-/* Approved Member Row Styling */
+/* Approved Member Row Styling — mobile-first card */
 .approved-member-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 0;
-    border-bottom: 1px solid #eee;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
 }
 
 .approved-member-row:last-child {
-    border-bottom: none;
+    margin-bottom: 0;
 }
 
 .member-main {
-    flex-grow: 1;
-    min-width: 150px;
+    min-width: 0;
 }
 
 .member-name {
     font-weight: bold;
-    font-size: 1.1em;
+    font-size: 1.05em;
     color: #333;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 
 .member-meta {
-    font-size: 0.9em;
+    font-size: 0.85em;
     color: #666;
+    margin-top: 2px;
 }
 
-.months-input {
-    width: 60px;
-    padding: 5px;
-    margin: 0;
-    text-align: center;
-    border: 1px solid var(--accent-silver);
-    border-radius: 4px;
-    box-sizing: border-box;
-}
-
-.member-actions {
+/* Commitment label + input + Save, compact single row */
+.member-commitment-control {
     display: flex;
-    gap: 5px;
+    align-items: center;
+    gap: 8px;
+}
+
+.member-commitment-control span {
+    font-size: 0.85em;
+    color: #555;
+    white-space: nowrap;
     flex-shrink: 0;
+}
+
+.member-commitment-control .monthly-commitment-input {
+    flex: 1;
+    min-width: 0;
+    width: auto !important;
+    margin: 0;
+    padding: 8px 10px;
+    font-size: 0.9em;
+}
+
+.member-commitment-control .save-commitment-btn {
+    flex-shrink: 0;
+    padding: 0.4em 0.9em;
+    font-size: 0.85em;
+    margin: 0;
+}
+
+/* Action buttons: equal-width compact row */
+.member-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.member-actions button {
+    padding: 0.5em 0.3em;
+    font-size: 0.75em;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+/* Wider screens: switch back to a single horizontal row */
+@media (min-width: 640px) {
+  .approved-member-row {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .member-main {
+    flex: 1 1 200px;
+  }
+  .member-commitment-control,
+  .member-actions {
+    flex-shrink: 0;
+  }
+  .member-actions {
+    display: flex;
+  }
+  .member-actions button {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85em;
+  }
 }
 
 /* Button Sizing Refinements */
@@ -542,15 +618,6 @@ button.approve-btn { /* Removed sidebar-toggle-btn as it's styled separately */
   justify-content: center;
 }
 
-/* Override for buttons specifically within the approved-member-row */
-.approved-member-row .collect-share-btn,
-.approved-member-row .view-payments-btn {
-    padding: 0.4em 0.8em;
-    font-size: 0.85em;
-    margin: 0 3px;
-    height: auto;
-    min-height: unset;
-}
 
 /* Card Styling (from your example) */
 .card {
@@ -631,36 +698,6 @@ button.approve-btn { /* Removed sidebar-toggle-btn as it's styled separately */
     margin: 0.25rem 0;
   }
 
-  /* Action buttons inside member list - more specific targeting */
-  .approved-member-row {
-      flex-direction: column; /* Stack vertically on small screens */
-      align-items: flex-start; /* Align content to the left */
-  }
-  .approved-member-row .member-actions {
-      width: 100%; /* Make actions full width */
-      justify-content: space-around; /* Distribute buttons */
-  }
-  .approved-member-row .months-input {
-      width: 100%; /* Make input full width */
-      margin-bottom: 5px;
-  }
-
-  .approved-member-row .collect-share-btn,
-  .approved-member-row .view-payments-btn,
-  .approved-row .approve-btn {
-    padding: 0.3em 0.5em;
-    font-size: 0.75em;
-    min-width: auto;
-    white-space: nowrap;
-  }
-
-  /* Reduce spacing between buttons */
-  .approved-member-row .collect-share-btn {
-    margin-right: 2px;
-  }
-  .approved-member-row .view-payments-btn {
-    margin-left: 0;
-  }
 
   /* Sidebar toggle stays touch-friendly */
   button.sidebar-toggle-btn {
@@ -853,9 +890,82 @@ button.approve-btn { /* Removed sidebar-toggle-btn as it's styled separately */
     color: var(--secondary-purple);
 }
 
+/* Collapsible dropdown: the borrower's name + status badges show in the
+   closed row; everything else (amount, purpose, documents, guarantor,
+   approve/deny) only renders once you click to expand that one request. */
+.loan-request-item summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.loan-request-item summary::-webkit-details-marker {
+    display: none;
+}
+
+.loan-request-item summary::after {
+    content: "▾";
+    opacity: 0.55;
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
+}
+
+.loan-request-item[open] summary::after {
+    transform: rotate(180deg);
+}
+
+.loan-request-summary-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 700;
+    color: var(--secondary-purple);
+    font-size: 15px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.loan-request-summary-badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.loan-request-body {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #eee;
+}
+
 .loan-request-item p {
     margin: 5px 0;
     color: #555;
+}
+
+.priority-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.priority-badge-ready {
+    background: #e6f4ea;
+    color: #1e7e34;
+}
+
+.priority-badge-waiting {
+    background: #fff3cd;
+    color: #7a5b00;
+}
+
+.priority-badge-behind {
+    background: #fdecea;
+    color: #7a1f13;
 }
 
 .loan-request-item .actions {
@@ -1101,6 +1211,72 @@ details ul {
 .page.dashboard .dashboard-scroll {
   background: white;
   /* min-height handled by .dashboard-scroll or parent containers */
+}
+
+/* =======================================================
+   🖼️ BACKGROUND WATERMARK LOGO (dashboards)
+   The small top logo is redundant with the header logo,
+   so it's replaced with a large, faint watermark sitting
+   behind the dashboard content instead.
+   ======================================================= */
+.page.dashboard .auth-logo {
+  display: none;
+}
+
+.page.dashboard .dashboard-scroll::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 560px;
+  height: 560px;
+  max-width: 85%;
+  background-image: url("/weelend-logo.png");
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: contain;
+  opacity: 0.08;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* 🔧 FIX: .dashboard-scroll doesn't establish its own stacking context
+   (position:relative alone, no z-index), so a negative z-index on the
+   ::before watermark above would paint BEHIND the page's own white
+   background instead of just behind its siblings — the classic z-index
+   gotcha. Promoting the real content to z-index:1 keeps it above the
+   z-index:0 watermark without needing a negative value. */
+.page.dashboard .dashboard-scroll > * {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-panel-title .dashboard-logo {
+  display: none;
+}
+
+#admin-main-content::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 560px;
+  height: 560px;
+  max-width: 85%;
+  background-image: url("/weelend-logo.png");
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: contain;
+  opacity: 0.05;
+  z-index: 0;
+  pointer-events: none;
+}
+
+#admin-main-content > * {
+  position: relative;
+  z-index: 1;
 }
 
 #page-dashboard-member {
@@ -1571,7 +1747,7 @@ details ul {
    🔒 ADMIN FULL VIEWPORT FIX
 ================================ */
 
-#page-dashboard-admin {
+#page-dashboard-admin.active {
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -1594,6 +1770,386 @@ details ul {
 body.admin-mode .bottom-nav,
 body.admin-mode .shop-fab {
   display: none !important;
+}
+
+/* ================================
+   💬 CHAT WIDGET (floating bubble, bottom-right)
+================================ */
+.chat-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 90px; /* clears the 64px bottom nav for member/borrower */
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #7a1130;
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+  z-index: 9500;
+}
+
+body.admin-mode .chat-fab {
+  bottom: 24px; /* no bottom nav in admin mode */
+}
+
+.chat-fab-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: #ff3b30;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid #fff;
+}
+
+.chat-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 156px;
+  width: min(360px, calc(100vw - 32px));
+  height: min(520px, calc(100vh - 220px));
+  background: #fff;
+  color: #222; /* explicit — this panel is appended to <body> and must not inherit a dark-theme text color meant for other pages */
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 9500;
+}
+
+.chat-panel * {
+  color: inherit;
+}
+
+body.admin-mode .chat-panel {
+  bottom: 90px;
+}
+
+.chat-panel.open {
+  display: flex;
+}
+
+.chat-panel-header {
+  background: #7a1130;
+  color: #fff;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chat-panel-tabs {
+  display: flex;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+
+.chat-panel-tab {
+  flex: 1;
+  padding: 10px 6px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  color: #777;
+}
+
+.chat-panel-tab {
+  color: #777 !important;
+}
+
+.chat-panel-tab.active {
+  color: #7a1130 !important;
+  border-bottom-color: #7a1130;
+}
+
+.chat-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.chat-thread-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-bottom: 6px;
+  background: #f7f7f8;
+  color: #222;
+}
+
+.chat-thread-row:hover {
+  background: #f0eef0;
+}
+
+.chat-thread-row .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff3b30;
+  flex-shrink: 0;
+}
+
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-bubble {
+  max-width: 78%;
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.35;
+  word-wrap: break-word;
+}
+
+.chat-bubble.mine {
+  align-self: flex-end;
+  background: #7a1130;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-bubble.theirs {
+  align-self: flex-start;
+  background: #f0f0f0;
+  color: #222;
+  border-bottom-left-radius: 4px;
+}
+
+.chat-bubble .sender {
+  display: block;
+  font-size: 10px;
+  opacity: 0.7;
+  margin-bottom: 2px;
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid #eee;
+  flex-shrink: 0;
+}
+
+.chat-input-row input {
+  flex: 1;
+  border-radius: 20px;
+  border: 1px solid #ddd;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #222;
+  background: #fff;
+}
+
+.chat-input-row button {
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: #7a1130;
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 15px;
+}
+
+.chat-input-row .icon-btn {
+  background: #f0eef0;
+  color: #222;
+}
+
+/* --- message wrapper (bubble + reactions + toolbar), edit/delete/react --- */
+.chat-msg-wrap {
+  display: flex;
+  flex-direction: column;
+  max-width: 82%;
+}
+
+.chat-msg-wrap.mine {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.chat-msg-wrap.theirs {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.chat-msg-wrap .sender {
+  display: block;
+  font-size: 10px;
+  opacity: 0.7;
+  margin-bottom: 2px;
+  padding: 0 4px;
+}
+
+.chat-bubble.deleted {
+  background: #f0f0f0 !important;
+  color: #888 !important;
+}
+
+.chat-attachment-img {
+  display: block;
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 10px;
+  margin-bottom: 4px;
+  object-fit: cover;
+}
+
+.chat-attachment-file {
+  display: inline-block;
+  color: inherit;
+  text-decoration: underline;
+  font-size: 12px;
+}
+
+.chat-edited-tag {
+  font-size: 10px;
+  opacity: 0.65;
+  font-style: italic;
+}
+
+.chat-edit-input {
+  width: 100%;
+  min-width: 160px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  padding: 6px 8px;
+  font-size: 13px;
+  color: #222;
+  background: #fff;
+}
+
+.chat-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  justify-content: flex-end;
+}
+
+.chat-edit-actions button {
+  border: none;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  background: #7a1130;
+  color: #fff;
+}
+
+.chat-edit-cancel {
+  background: #e0e0e0 !important;
+  color: #333 !important;
+}
+
+.chat-reactions-strip {
+  display: flex;
+  gap: 4px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+
+.chat-reaction-pill {
+  background: #fff;
+  border: 1px solid #e2e2e2;
+  border-radius: 12px;
+  font-size: 11px;
+  padding: 1px 7px;
+  color: #333;
+}
+
+.chat-msg-toolbar {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+  opacity: 0.55;
+}
+
+.chat-msg-toolbar button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px;
+  line-height: 1;
+}
+
+.chat-reaction-picker {
+  display: flex;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #e2e2e2;
+  border-radius: 20px;
+  padding: 4px 8px;
+  margin-top: 4px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.chat-reaction-opt {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 3px;
+}
+
+.chat-reaction-opt:hover {
+  transform: scale(1.2);
+}
+
+.chat-emoji-picker {
+  position: absolute;
+  bottom: 54px;
+  left: 8px;
+  right: 8px;
+  background: #fff;
+  border: 1px solid #e2e2e2;
+  border-radius: 12px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.18);
+  z-index: 20;
+}
+
+.chat-emoji-opt {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.chat-emoji-opt:hover {
+  background: #f0eef0;
 }
 
 body.admin-mode .dashboard-scroll {
@@ -2034,4 +2590,1020 @@ img.lightbox-img {
 
 .lightbox-close:hover {
   color: #ccc;
+}
+
+/* =======================================================
+   📷 LIVE CAMERA CAPTURE MODAL
+   (selfie / selfie-holding-ID — used by profile verification
+   and security guarantor verification)
+   ======================================================= */
+.camera-capture-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 21000;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.camera-capture-box {
+  background: #1c1c1c;
+  color: #fff;
+  border-radius: 16px;
+  padding: 18px;
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.camera-capture-title {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.camera-capture-instructions {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: #ccc;
+}
+
+.camera-capture-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--accent-silver);
+}
+
+.camera-capture-video,
+.camera-capture-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.camera-capture-error {
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.camera-capture-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.camera-capture-actions button {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.camera-capture-snap-btn,
+.camera-capture-confirm-btn {
+  background: linear-gradient(90deg, var(--primary-dark-purple), var(--secondary-purple));
+  color: #fff;
+}
+
+.camera-capture-cancel-btn,
+.camera-capture-retake-btn {
+  background: transparent;
+  color: #fff;
+  border: 1px solid var(--accent-silver) !important;
+}
+
+/* =======================================================
+   🪪 IDENTITY VERIFICATION SECTION (Edit Profile)
+   ======================================================= */
+.verification-status-badge {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin: 4px 0;
+}
+
+.verification-status-badge[data-status="not_started"] {
+  background: rgba(160, 160, 160, 0.2);
+  color: #aaa;
+}
+
+.verification-status-badge[data-status="pending_review"] {
+  background: rgba(255, 193, 7, 0.18);
+  color: #ffc107;
+}
+
+.verification-status-badge[data-status="approved"] {
+  background: rgba(46, 204, 113, 0.18);
+  color: #2ecc71;
+}
+
+.verification-status-badge[data-status="rejected"] {
+  background: rgba(255, 107, 107, 0.18);
+  color: #ff6b6b;
+}
+
+.verification-note {
+  font-size: 13px;
+  color: #999;
+  margin: 0 0 10px;
+}
+
+.verification-thumbs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.verification-thumb-slot {
+  flex: 1 1 100px;
+  text-align: center;
+}
+
+.verification-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--accent-silver);
+}
+
+.verify-capture-btn {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-silver);
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.verify-submit-btn {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(90deg, var(--primary-dark-purple), var(--secondary-purple));
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+/* =======================================================
+   🪪 ADMIN — IDENTITY VERIFICATION REVIEW PANEL
+   ======================================================= */
+.admin-verification-badge {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(160, 160, 160, 0.2);
+}
+
+.admin-verification-badge[data-status="pending_review"] {
+  background: rgba(255, 193, 7, 0.18);
+  color: #ffc107;
+}
+
+.admin-verification-badge[data-status="approved"] {
+  background: rgba(46, 204, 113, 0.18);
+  color: #2ecc71;
+}
+
+.admin-verification-badge[data-status="rejected"] {
+  background: rgba(255, 107, 107, 0.18);
+  color: #ff6b6b;
+}
+
+.admin-verification-photos {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.admin-verification-photos > div {
+  flex: 1 1 160px;
+}
+
+.admin-verification-img {
+  width: 100%;
+  max-width: 220px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-silver);
+  cursor: zoom-in;
+}
+
+.admin-verification-actions {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.admin-verification-actions button {
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#approve-verification-btn {
+  background: #2ecc71;
+  color: #fff;
+}
+
+#reject-verification-btn {
+  background: #ff6b6b;
+  color: #fff;
+}
+
+.admin-guarantor-block {
+  border: 1px solid var(--accent-silver);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 10px 0;
+}
+
+/* 🛡️ The Security Guarantor heading sits inside a white .modal-content
+   box, but the page-wide default text color is near-white (meant for the
+   dark background elsewhere). Force readable dark text so it isn't
+   invisible. */
+#loan-security-guarantor-section h4 {
+  color: #222;
+}
+
+/* 📝 "Continue Your Request" modal has the exact same problem — it sits
+   in a white .modal-content box but inherits the page-wide near-white
+   default text color (:root color: rgba(255,255,255,0.87)), so its
+   headings, intro text, agreement summary and checkbox label were
+   rendering invisible. Force readable dark text throughout. */
+#complete-request-modal h2,
+#complete-request-modal h3,
+#complete-request-modal p,
+#complete-request-modal label,
+#complete-request-agreement-summary,
+#complete-request-agreement-summary li {
+  color: #222;
+}
+/* =======================================================
+   🧭 COMBINED DASHBOARD PANELS
+   (Admin Overview / Member / Borrower dashboards — groups
+   related stat cards into fewer, richer panels instead of
+   one flat card per number. Uses the app's existing theme
+   variables so it re-colors correctly under every theme,
+   not just the default purple.)
+   ======================================================= */
+
+.dp-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.dp-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dp-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #2a2438;
+  letter-spacing: -0.2px;
+}
+
+.dp-header .dp-subtitle {
+  font-size: 13px;
+  color: #8a7f98;
+}
+
+.dp-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(30, 10, 50, 0.08);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #5a4f68;
+}
+
+.dp-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2ecc71;
+  display: inline-block;
+}
+
+.dp-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dp-grid-split {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 760px) {
+  .dp-grid-2,
+  .dp-grid-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dp-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 24px 26px;
+  background: linear-gradient(135deg, var(--secondary-purple) 0%, var(--primary-dark-purple) 100%);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 10px 24px rgba(30, 10, 50, 0.22);
+}
+
+.dp-hero::after {
+  content: "";
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.dp-hero .dp-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  opacity: 0.85;
+}
+
+.dp-hero .dp-amount {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+}
+
+.dp-hero .dp-caption {
+  font-size: 12px;
+  opacity: 0.78;
+}
+
+.dp-stat {
+  border-radius: 18px;
+  padding: 24px 26px;
+  background: #ffffff;
+  border: 1px solid #ece7f2;
+  box-shadow: 0 6px 16px rgba(30, 10, 50, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dp-stat .dp-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #8a7c9a;
+}
+
+.dp-stat .dp-amount {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: #2a1240;
+}
+
+.dp-stat .dp-caption {
+  font-size: 12px;
+  color: #9a8caa;
+}
+
+.dp-panel {
+  background: #ffffff;
+  border: 1px solid #ece7f2;
+  border-radius: 18px;
+  padding: 22px 24px;
+  box-shadow: 0 6px 16px rgba(30, 10, 50, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dp-panel-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2a1240;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dp-panel-title .dp-panel-hint {
+  font-size: 11px;
+  font-weight: 500;
+  color: #b3a5c2;
+}
+
+.dp-cols {
+  display: grid;
+  grid-template-columns: repeat(var(--dp-cols, 3), minmax(0, 1fr));
+}
+
+.dp-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 18px;
+}
+
+.dp-col:first-child {
+  padding-left: 0;
+}
+
+.dp-col:last-child {
+  padding-right: 0;
+}
+
+.dp-col + .dp-col {
+  border-left: 1px solid #f0ecf5;
+}
+
+.dp-col-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8a7c9a;
+}
+
+.dp-col-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: #2a1240;
+}
+
+.dp-col-caption {
+  font-size: 11.5px;
+  color: #9a8caa;
+}
+
+.dp-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #f2ecf9;
+  color: var(--secondary-purple);
+}
+
+.dp-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.dp-icon.dp-icon-green { background: #eaf7f0; color: #1e9e5a; }
+.dp-icon.dp-icon-amber { background: #fdf3e3; color: #c78a1e; }
+.dp-icon.dp-icon-blue  { background: #eef0fb; color: #4550c9; }
+.dp-icon.dp-icon-purple{ background: #f2ecf9; color: var(--secondary-purple); }
+
+.dp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f2eef6;
+}
+
+.dp-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.dp-row:first-child {
+  padding-top: 0;
+}
+
+.dp-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dp-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dp-row-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #4a3a5c;
+}
+
+.dp-row-sub {
+  font-size: 11.5px;
+  color: #9a8caa;
+}
+
+.dp-row-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #2a1240;
+  white-space: nowrap;
+}
+
+.dp-row-value.dp-row-value-lg {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--primary-dark-purple);
+}
+
+.dp-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: #f1edf6;
+  color: #8a7c9a;
+  white-space: nowrap;
+}
+
+.dp-bar-track {
+  height: 6px;
+  border-radius: 4px;
+  background: #f1edf6;
+  overflow: hidden;
+}
+
+.dp-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--secondary-purple);
+}
+
+.dp-segmented {
+  display: flex;
+  height: 12px;
+  border-radius: 7px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.dp-segmented > span {
+  height: 100%;
+}
+
+.dp-legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.dp-cta-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dp-cta-stack button,
+.dp-cta-stack .request-loan-btn {
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 14.5px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.dp-cta-primary {
+  border: none;
+  color: #fff;
+  background: linear-gradient(135deg, var(--secondary-purple), var(--primary-dark-purple));
+}
+
+.dp-cta-secondary {
+  border: 1px solid #e0d6ec;
+  color: var(--primary-dark-purple);
+  background: #ffffff;
+}
+
+@media (max-width: 600px) {
+  .dp-cols { grid-template-columns: 1fr; row-gap: 14px; }
+  .dp-col { padding: 0 !important; border-left: none !important; }
+  .dp-col + .dp-col { border-top: 1px solid #f0ecf5; padding-top: 12px !important; }
+}
+
+/* =======================================================
+   🎉 FISCAL YEAR PAYOUT — mobile-friendly stat boxes +
+   member breakdown table. The stat boxes reuse .dp-cols/
+   .dp-col (fixed above at <=600px), this block only adds
+   the table treatment: normal table on wide screens,
+   scrollable on tablet, stacked "cards" on phones so the
+   rightmost column is never cut off.
+   ======================================================= */
+.payout-table-wrap {
+  overflow-x: auto;
+}
+
+.payout-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: #2a1240;
+}
+
+.payout-table thead tr {
+  text-align: left;
+  border-bottom: 2px solid #ddd;
+}
+
+.payout-table th,
+.payout-table td {
+  padding: 6px;
+  color: #2a1240;
+}
+
+.payout-table tbody tr {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.payout-table .payout-table-total {
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .payout-table-wrap {
+    overflow-x: visible;
+  }
+  .payout-table thead {
+    display: none;
+  }
+  .payout-table,
+  .payout-table tbody,
+  .payout-table tr,
+  .payout-table td {
+    display: block;
+    width: 100%;
+  }
+  .payout-table tr {
+    border: 1px solid #eee2f5;
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+  }
+  .payout-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    border-bottom: none;
+    padding: 4px 0;
+    text-align: right;
+  }
+  .payout-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #8a7c9a;
+    font-size: 11.5px;
+    text-align: left;
+    margin-right: auto;
+  }
+}
+
+/* =======================================================
+   🧭 ADMIN LIST PAGES — VISUAL REFRESH
+   (Approved Members/Borrowers, Loan Requests, Easy
+   Installments, Pa-benta, Payment Settings. Restyles the
+   EXISTING classes these pages already use so they match
+   the combined-panel look above — no markup or JS changes,
+   colors only via the app's theme variables.)
+   ======================================================= */
+
+/* Section titles inside the admin content area */
+#admin-section-content > div > h3:first-child,
+#admin-section-content > h3:first-child {
+  font-size: 18px;
+  font-weight: 800;
+  color: #2a1240;
+  letter-spacing: -0.2px;
+  margin: 4px 0 16px;
+}
+
+/* List-style row cards (Approved Members, Loan Requests, etc.) */
+#admin-section-content .approved-member-row,
+#admin-section-content .loan-request-item {
+  border-radius: 16px;
+  border: 1px solid #ece7f2;
+  box-shadow: 0 4px 12px rgba(30, 10, 50, 0.05);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+#admin-section-content .approved-member-row:hover,
+#admin-section-content .loan-request-item:hover {
+  box-shadow: 0 8px 18px rgba(30, 10, 50, 0.09);
+}
+
+#admin-section-content .card {
+  border: 1px solid #ece7f2;
+  box-shadow: 0 4px 12px rgba(30, 10, 50, 0.05);
+}
+
+/* Primary / confirm actions */
+#admin-section-content button.approve-btn,
+#admin-section-content button.approve-loan-btn,
+#admin-section-content button.approve-guarantor-btn,
+#admin-section-content button.save-commitment-btn,
+#admin-section-content button.primary,
+#admin-section-content button#save-payment-settings-btn {
+  background: linear-gradient(135deg, #1e9e5a, #167a45);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+#admin-section-content button.approve-btn:hover,
+#admin-section-content button.approve-loan-btn:hover,
+#admin-section-content button.approve-guarantor-btn:hover,
+#admin-section-content button.save-commitment-btn:hover,
+#admin-section-content button.primary:hover,
+#admin-section-content button#save-payment-settings-btn:hover {
+  filter: brightness(1.05);
+}
+
+/* Destructive / deny actions */
+#admin-section-content button.deny-btn,
+#admin-section-content button.deny-loan-btn,
+#admin-section-content button.reject-guarantor-btn,
+#admin-section-content button.delete-pending-btn {
+  background: #fdeeee;
+  color: #c0392b;
+  border: 1px solid #f3d3d3;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+#admin-section-content button.deny-btn:hover,
+#admin-section-content button.deny-loan-btn:hover,
+#admin-section-content button.reject-guarantor-btn:hover,
+#admin-section-content button.delete-pending-btn:hover {
+  background: #fbdede;
+}
+
+/* Neutral / secondary view actions */
+#admin-section-content button.view-payments-btn,
+#admin-section-content button.view-member-profile-btn,
+#admin-section-content button.view-borrower-details-btn,
+#admin-section-content button.verify-id-btn,
+#admin-section-content button.change-role-btn,
+#admin-section-content button.collect-share-btn {
+  background: #ffffff;
+  color: var(--primary-dark-purple, #3a0f63);
+  border: 1px solid #e0d6ec;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+#admin-section-content button.view-payments-btn:hover,
+#admin-section-content button.view-member-profile-btn:hover,
+#admin-section-content button.view-borrower-details-btn:hover,
+#admin-section-content button.verify-id-btn:hover,
+#admin-section-content button.change-role-btn:hover,
+#admin-section-content button.collect-share-btn:hover {
+  background: #f7f2fb;
+}
+
+/* Status / info pill badges */
+#admin-section-content .loan-badge {
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+/* Inactive/departed member & borrower rows */
+#admin-section-content .approved-member-row.member-row-inactive {
+  opacity: 0.6;
+  background: #faf9fb;
+}
+
+#admin-section-content .loan-badge.inactive-badge {
+  background: #f1edf6;
+  color: #8a7c9a;
+}
+
+/* Admin tables */
+#admin-section-content .admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(30, 10, 50, 0.05);
+}
+
+#admin-section-content .admin-table th {
+  background: #f7f2fb;
+  color: #5a4f68;
+  text-transform: uppercase;
+  font-size: 0.8em;
+  font-weight: 700;
+  padding: 10px 14px;
+  text-align: left;
+}
+
+#admin-section-content .admin-table td {
+  padding: 10px 14px;
+  border-top: 1px solid #f0ecf5;
+}
+
+/* 📱 Admin tables on phones — instead of a wide table that forces
+   horizontal scrolling, each row becomes its own stacked card and each
+   cell shows its column header as a label to the left of the value.
+   Relies on a data-label="..." attribute matching each <th>, set on the
+   corresponding <td> when the row's HTML is built (see allLoans.ts /
+   repayments.ts). Any admin table using the .admin-table class and
+   data-label attributes gets this automatically. */
+@media (max-width: 700px) {
+  #admin-section-content .admin-table thead {
+    display: none;
+  }
+
+  #admin-section-content .admin-table,
+  #admin-section-content .admin-table tbody,
+  #admin-section-content .admin-table tr,
+  #admin-section-content .admin-table td {
+    display: block;
+    width: 100%;
+  }
+
+  #admin-section-content .admin-table tr {
+    margin-bottom: 14px;
+    border: 1px solid #f0ecf5;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(30, 10, 50, 0.05);
+    max-width: 100%;
+  }
+
+  /* Label stacked ABOVE the value (not side-by-side) — a side-by-side
+     flex row lets long plain-text values (a full name, a peso amount)
+     overflow past the screen edge instead of wrapping, since a bare
+     text node inside a flex item won't shrink on its own. Stacking
+     avoids that entirely: both label and value are block-level and
+     wrap normally within the card's width. */
+  #admin-section-content .admin-table td {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    text-align: left;
+    border-top: 1px solid #f0ecf5;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  #admin-section-content .admin-table td:first-child {
+    border-top: none;
+  }
+
+  #admin-section-content .admin-table td::before {
+    content: attr(data-label);
+    display: block;
+    font-weight: 700;
+    color: #5a4f68;
+    text-transform: uppercase;
+    font-size: 0.72em;
+    margin-bottom: 3px;
+  }
+
+  /* Action buttons: full width, stacked, so they never spill past the
+     card's edge no matter how many there are in one cell. */
+  #admin-section-content .admin-table td.admin-table-actions button {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 8px;
+  }
+
+  #admin-section-content .admin-table td.admin-table-actions button:first-of-type {
+    margin-top: 0;
+  }
+}
+
+/* 🗂️ Repayments — one collapsible group per borrower (A→Z), each
+   holding that borrower's installments sorted soonest-due-first. */
+#repayments-groups .repayment-group {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(30, 10, 50, 0.05);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+#repayments-groups .repayment-group-summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  font-weight: 700;
+  color: #3a2a4a;
+  background: #f7f2fb;
+}
+
+#repayments-groups .repayment-group-summary::-webkit-details-marker {
+  display: none;
+}
+
+#repayments-groups .repayment-group-summary::after {
+  content: "▾";
+  color: #8a5ba0;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+#repayments-groups details[open] > .repayment-group-summary::after {
+  transform: rotate(180deg);
+}
+
+#repayments-groups .repayment-group-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8a5ba0;
+  background: #f1e6f7;
+  padding: 2px 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+#repayments-groups .admin-table {
+  box-shadow: none;
+  border-radius: 0;
+  margin: 0;
+}
+
+/* Pa-benta tab pills */
+.tab-button {
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.tab-button.active {
+  background: linear-gradient(135deg, var(--secondary-purple), var(--primary-dark-purple));
+  color: #fff;
+  border: none;
 }

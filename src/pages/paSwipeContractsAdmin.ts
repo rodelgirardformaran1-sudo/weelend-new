@@ -1,6 +1,7 @@
 // src/pages/paSwipeContractsAdmin.ts
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "../firebaseConfig";
+import { renderAgreementAcceptanceHtml } from "../utils/agreementDisplay";
 
 let clickBound = false;
 
@@ -39,11 +40,23 @@ export async function initPaSwipeContractsAdmin(container: HTMLElement) {
     declined: "#dc3545",
   };
 
-  listEl.innerHTML = snap.docs
-    .map((d) => {
+  listEl.innerHTML = (await Promise.all(
+    snap.docs.map(async (d) => {
       const c = d.data() as any;
       const product = c.productSnapshot || {};
       const color = statusColor[c.status] || "#888";
+
+      // 📄 Agreement acceptance lives on the original paSwipeRequests doc
+      // (requestId field on this contract), not on the contract itself.
+      let agreementAcceptance: any = null;
+      if (c.requestId) {
+        try {
+          const reqSnap = await getDoc(doc(db, "paSwipeRequests", c.requestId));
+          agreementAcceptance = reqSnap.exists() ? reqSnap.data()?.agreementAcceptance ?? null : null;
+        } catch {
+          agreementAcceptance = null;
+        }
+      }
 
       return `
         <div class="card" style="margin-bottom:12px; padding:14px;">
@@ -58,6 +71,7 @@ export async function initPaSwipeContractsAdmin(container: HTMLElement) {
               <span style="background:${color}; color:white; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:700;">
                 ${c.status}
               </span>
+              ${renderAgreementAcceptanceHtml(agreementAcceptance)}
 
               <details style="margin-top:8px;">
                 <summary style="cursor:pointer; font-size:13px; color:#555;">View full contract text</summary>
@@ -71,7 +85,7 @@ export async function initPaSwipeContractsAdmin(container: HTMLElement) {
         </div>
       `;
     })
-    .join("");
+  )).join("");
 
   if (!clickBound) {
     clickBound = true;

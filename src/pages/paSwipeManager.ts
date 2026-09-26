@@ -11,7 +11,11 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../firebaseConfig";
-import { calcPaSwipePricing, TERM_OPTIONS, DOWNPAYMENT_OPTIONS, DEFAULT_DOWNPAYMENT_RATE } from "../utils/paSwipeCalc";
+import {
+  calcPaSwipePricing,
+  TERM_OPTIONS,
+  DEFAULT_DOWNPAYMENT_RATE,
+} from "../utils/paSwipeCalc";
 
 const PRODUCTS_COL = "paSwipeProducts";
 
@@ -28,9 +32,9 @@ export function initPaSwipeManager(container?: HTMLElement) {
 
   target.innerHTML = `
     <div class="card">
-      <h3>🟦 MLF Easy Installments — Manager</h3>
+      <h3>🟦 Pa-Swipe Manager</h3>
       <p style="margin-top:6px; opacity:.85;">
-        Add items available for installment (tier-based terms: 3/6/9/12 months).
+        Add Pa-Swipe items (tier-based terms: 3/6/9/12 months).
       </p>
 
       <div class="modal-form-group">
@@ -53,21 +57,11 @@ export function initPaSwipeManager(container?: HTMLElement) {
       </div>
 
       <div class="modal-form-group">
-        <label>Downpayment Option</label>
-        <select id="ps-downpayment-rate">
-          ${DOWNPAYMENT_OPTIONS.map(
-            (r) => `<option value="${r}" ${r === DEFAULT_DOWNPAYMENT_RATE ? "selected" : ""}>${(r * 100).toFixed(0)}%</option>`
-          ).join("")}
-        </select>
-        <small style="opacity:.7;">Lower downpayment can help attract more buyers.</small>
-      </div>
-
-      <div class="modal-form-group">
         <label>Preview Term</label>
         <select id="ps-preview-term">
           ${TERM_OPTIONS.map(t => `<option value="${t}">${t} months</option>`).join("")}
         </select>
-        <small style="opacity:.7;">Downpayment and interest are computed automatically by term tier.</small>
+        <small style="opacity:.7;">Interest is computed automatically by term tier (10/20/30/40%).</small>
       </div>
 
       <div class="modal-form-group">
@@ -77,10 +71,10 @@ export function initPaSwipeManager(container?: HTMLElement) {
       </div>
 
       <div class="card" style="background:#f7f7f7; margin-top:10px;">
-        <h4 style="margin:0 0 8px 0;">Live Preview</h4>
+        <h4 style="margin:0 0 8px 0;">Live Preview (20% downpayment)</h4>
         <div id="ps-preview" style="line-height:1.7; color:#222;">
           <div>SRP: <strong>-</strong></div>
-          <div>Downpayment (20%): <strong>-</strong></div>
+          <div>Downpayment: <strong>-</strong></div>
           <div>Interest Rate: <strong>-</strong></div>
           <div>Interest Amount: <strong>-</strong></div>
           <div>Remaining Balance: <strong>-</strong></div>
@@ -94,7 +88,6 @@ export function initPaSwipeManager(container?: HTMLElement) {
 
     <div class="card">
       <h3>Existing Items</h3>
-      <input id="ps-search" type="text" placeholder="🔍 Search items by name..." style="margin-bottom:10px;" />
       <div id="ps-items"></div>
     </div>
   `;
@@ -102,34 +95,34 @@ export function initPaSwipeManager(container?: HTMLElement) {
   const titleEl = document.getElementById("ps-title") as HTMLInputElement;
   const categoryEl = document.getElementById("ps-category") as HTMLSelectElement;
   const srpEl = document.getElementById("ps-srp") as HTMLInputElement;
-  const downpaymentRateEl = document.getElementById("ps-downpayment-rate") as HTMLSelectElement;
   const previewTermEl = document.getElementById("ps-preview-term") as HTMLSelectElement;
   const photoEl = document.getElementById("ps-photo") as HTMLInputElement;
   const previewEl = document.getElementById("ps-preview") as HTMLElement;
   const msgEl = document.getElementById("ps-msg") as HTMLElement;
   const saveBtn = document.getElementById("ps-save") as HTMLButtonElement;
   const itemsEl = document.getElementById("ps-items") as HTMLElement;
-  const searchEl = document.getElementById("ps-search") as HTMLInputElement;
 
   function refreshPreview() {
     const srp = Number(srpEl.value || 0);
     const term = Number(previewTermEl.value || 12);
-    const downpaymentRate = Number(downpaymentRateEl.value || DEFAULT_DOWNPAYMENT_RATE);
 
-    const pricing = calcPaSwipePricing({ srp, termMonths: term, downpaymentRate });
+    const pricing = calcPaSwipePricing({
+      srp,
+      termMonths: term,
+      downpaymentRate: DEFAULT_DOWNPAYMENT_RATE,
+    });
 
     previewEl.innerHTML = `
       <div>SRP: <strong>${srp ? peso(srp) : "-"}</strong></div>
-      <div>Downpayment (${(downpaymentRate * 100).toFixed(0)}%): <strong>${srp ? peso(pricing.downpayment) : "-"}</strong></div>
+      <div>Downpayment: <strong>${srp ? peso(pricing.downpayment) : "-"}</strong></div>
       <div>Interest Rate: <strong>${srp ? `${(pricing.interestRate * 100).toFixed(0)}%` : "-"}</strong></div>
       <div>Interest Amount: <strong>${srp ? peso(pricing.interest) : "-"}</strong></div>
       <div>Remaining Balance: <strong>${srp ? peso(pricing.remainingBalance) : "-"}</strong></div>
-      <div>Semi-Monthly Installment (${pricing.installmentCount} payments): <strong>${srp ? peso(pricing.installmentAmount) : "-"}</strong></div>
+      <div>Semi-Monthly Installment (${pricing.termMonths} months, ${pricing.installmentCount} payments): <strong>${srp ? peso(pricing.installmentAmount) : "-"}</strong></div>
     `;
   }
 
   srpEl.addEventListener("input", refreshPreview);
-  downpaymentRateEl.addEventListener("change", refreshPreview);
   previewTermEl.addEventListener("change", refreshPreview);
   refreshPreview();
 
@@ -140,7 +133,6 @@ export function initPaSwipeManager(container?: HTMLElement) {
     const title = titleEl.value.trim();
     const category = categoryEl.value;
     const srp = Number(srpEl.value);
-    const downpaymentRate = Number(downpaymentRateEl.value || DEFAULT_DOWNPAYMENT_RATE);
 
     if (!title) return (msgEl.textContent = "Item name is required.");
     if (!srp || srp <= 0) return (msgEl.textContent = "SRP must be greater than 0.");
@@ -174,8 +166,6 @@ export function initPaSwipeManager(container?: HTMLElement) {
           title,
           category,
           srp,
-          downpaymentRate,
-          pricingVersion: 3,
           updatedAt: serverTimestamp(),
         };
 
@@ -191,9 +181,7 @@ export function initPaSwipeManager(container?: HTMLElement) {
           title,
           category,
           srp,
-          downpaymentRate,
           imageUrl,
-          pricingVersion: 3,
           isActive: true,
           stockStatus: "in_stock",
           createdAt: serverTimestamp(),
@@ -220,41 +208,48 @@ export function initPaSwipeManager(container?: HTMLElement) {
 
   // List existing products
   const q = query(collection(db, PRODUCTS_COL), orderBy("createdAt", "desc"));
-  let allDocs: any[] = [];
-
-  function renderItemsList() {
-    const searchTerm = searchEl.value.trim().toLowerCase();
-    const filtered = searchTerm
-      ? allDocs.filter((d) => (d.data().title || "").toLowerCase().includes(searchTerm))
-      : allDocs;
-
-    if (filtered.length === 0) {
-      itemsEl.innerHTML = `<p style="opacity:.8;">${searchTerm ? "No items match your search." : "No items yet."}</p>`;
+  onSnapshot(q, (snap) => {
+    if (snap.empty) {
+      itemsEl.innerHTML = `<p style="opacity:.8;">No Pa-Swipe items yet.</p>`;
       return;
     }
 
-    itemsEl.innerHTML = filtered
+    itemsEl.innerHTML = snap.docs
       .map((d) => {
         const p = d.data() as any;
 
+        const pricing12 = calcPaSwipePricing({
+          srp: p.srp || 0,
+          termMonths: 12,
+          downpaymentRate: DEFAULT_DOWNPAYMENT_RATE,
+        });
+
         const tierLines = TERM_OPTIONS.map((t) => {
-          const pr = calcPaSwipePricing({ srp: p.srp || 0, termMonths: t });
-          return `<div style="font-size:12px; opacity:.85;">${t} mos: <strong>${peso(pr.installmentAmount)}</strong>/installment (${pr.installmentCount}x)</div>`;
+          const pr = calcPaSwipePricing({
+            srp: p.srp || 0,
+            termMonths: t,
+            downpaymentRate: DEFAULT_DOWNPAYMENT_RATE,
+          });
+          return `<div style="font-size:12px; opacity:.85;">${t} mos: <strong>${peso(
+            pr.installmentAmount
+          )}</strong>/installment</div>`;
         }).join("");
 
         return `
           <div class="card" style="margin-bottom:12px;">
             <div style="display:flex; gap:12px; align-items:center;">
-              <img class="lightbox-img" src="${p.imageUrl}" style="width:72px; height:72px; object-fit:cover; border-radius:12px;" />
+              <img src="${p.imageUrl}" style="width:72px; height:72px; object-fit:cover; border-radius:12px;" />
               <div style="flex:1;">
                 <div style="font-weight:700;">${p.title}</div>
                 <div style="opacity:.8; font-size:13px;">Category: ${p.category}</div>
 
                 <div style="margin-top:6px; line-height:1.55;">
                   <div>SRP: <strong>${peso(p.srp || 0)}</strong></div>
-                  <div>Downpayment (20%): <strong>${peso((p.srp || 0) * 0.20)}</strong></div>
+                  <div>Interest Rate (12 mo): <strong>${(pricing12.interestRate * 100).toFixed(0)}%</strong></div>
+                  <div>Interest (12 mo): <strong>${peso(pricing12.interest)}</strong></div>
+                  <div>Remaining Balance (12 mo): <strong>${peso(pricing12.remainingBalance)}</strong></div>
                   <div style="margin-top:6px;">
-                    <div style="font-weight:600; font-size:13px;">Semi-Monthly Installment Tiers</div>
+                    <div style="font-weight:600; font-size:13px;">Semi-Monthly Installment by Term (20% downpayment)</div>
                     ${tierLines}
                   </div>
                 </div>
@@ -281,15 +276,11 @@ export function initPaSwipeManager(container?: HTMLElement) {
       })
       .join("");
 
-    bindItemButtons();
-  }
-
-  function bindItemButtons() {
     // ✅ Edit button
     itemsEl.querySelectorAll("button[data-edit]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const id = (btn as HTMLButtonElement).dataset.edit!;
-        const current = allDocs.find((x) => x.id === id)?.data() as any;
+        const current = snap.docs.find((x) => x.id === id)?.data() as any;
         if (!current) return;
 
         titleEl.value = current.title ?? "";
@@ -318,7 +309,7 @@ export function initPaSwipeManager(container?: HTMLElement) {
       btn.addEventListener("click", async () => {
         const id = (btn as HTMLButtonElement).dataset.stock!;
         const docRef = doc(db, PRODUCTS_COL, id);
-        const current = allDocs.find((x) => x.id === id)?.data() as any;
+        const current = snap.docs.find((x) => x.id === id)?.data() as any;
         if (!current) return;
 
         const nextStatus =
@@ -336,7 +327,7 @@ export function initPaSwipeManager(container?: HTMLElement) {
       btn.addEventListener("click", async () => {
         const id = (btn as HTMLButtonElement).dataset.toggle!;
         const docRef = doc(db, PRODUCTS_COL, id);
-        const current = allDocs.find((x) => x.id === id)?.data() as any;
+        const current = snap.docs.find((x) => x.id === id)?.data() as any;
         await updateDoc(docRef, {
           isActive: !current.isActive,
           updatedAt: serverTimestamp(),
@@ -348,16 +339,9 @@ export function initPaSwipeManager(container?: HTMLElement) {
     itemsEl.querySelectorAll("button[data-delete]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const id = (btn as HTMLButtonElement).dataset.delete!;
-        if (!confirm("Delete this item?")) return;
+        if (!confirm("Delete this Pa-Swipe item?")) return;
         await deleteDoc(doc(db, PRODUCTS_COL, id));
       });
     });
-  }
-
-  onSnapshot(q, (snap) => {
-    allDocs = snap.docs;
-    renderItemsList();
   });
-
-  searchEl.addEventListener("input", renderItemsList);
 }

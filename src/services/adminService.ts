@@ -9,13 +9,259 @@ import {
   updateDoc,
   serverTimestamp,
   increment,
-  addDoc,
   getDoc,
   setDoc, // NEW: Added setDoc for initializing/creating coop financial summary
+  writeBatch,
 } from "firebase/firestore";
 
 import { db } from "../firebaseConfig";
-import type { UserProfile } from "../type";
+import type { UserProfile, AgreementProductType } from "../type";
+import { getUserFullName } from "./userUtils";
+import { generateLoanContract } from "../utils/generateLoanContract";
+import { getInviteForRequest } from "./securityGuarantorService";
+import {
+  getCoopLoanAgreementPlainText,
+  getEasyInstallmentAgreementPlainText,
+  getCreditCartAgreementPlainText,
+} from "../utils/loanAgreementModal";
+import { getFiscalYearStart } from "./fiscalShareSchedule";
+
+// ===========================================================
+// 📄 LEGACY AGREEMENT BACKFILL — one-time admin action
+// ===========================================================
+// Stamps a clearly-labeled retroactive agreementAcceptance record onto
+// loanRequests / paSwipeRequests / creditCartRequests that predate the new
+// in-app checkbox-gated agreement flow. This is NOT presented as a live
+// user confirmation — isLegacyBackfill: true and this version string make
+// that explicit, so the record is honest about what it actually is if it's
+// ever examined later.
+//
+// Covers all three products: MLF Easy Installment and Marimar's Credit
+// Cart do have real legacy transactions predating their in-app agreement
+// (confirmed 2026-09-23), so they're back in scope alongside Coop Loan.
+//
+// This also "tops up" records that already have an agreementAcceptance but
+// are missing the verbatim agreementText field (added after the very first
+// run of this backfill, and also possible on early real checkbox
+// confirmations captured before that field existed). For a REAL
+// confirmation (isLegacyBackfill is not set), the top-up only ever fills
+// a missing agreementText — it never touches one that's already there,
+// since that's an authentic historical snapshot of what the person saw
+// and must never be rewritten.
+//
+// For an ADMINISTRATIVELY-BACKFILLED record (isLegacyBackfill: true),
+// agreementText was never a real historical snapshot to begin with — it
+// was always "the current policy wording, applied retroactively." So
+// when that current wording changes (e.g. Coop Loan's agreement was
+// expanded into a full promissory-note-style document), this re-stamps
+// the newer wording onto every legacy-backfilled record whose stored
+// text doesn't match it yet, so they don't stay frozen on stale wording
+// forever. The rest of the record (version, terms, acceptedAt,
+// backfilledBy) is left untouched either way.
+export const LEGACY_AGREEMENT_VERSION = "legacy-backfill-2026-09-23";
+
+const RECONSTRUCTED_TEXT_NOTE =
+  "⚠️ Reconstructed text: this record predates verbatim-text storage. The wording above is the CURRENT policy text, applied retroactively for reference — it is not necessarily the exact wording shown at the original acceptance.\n\n";
+
+// The text a legacy-backfilled record SHOULD carry right now, given its
+// product — every product has its own full, structured agreement now.
+function currentReconstructedTextFor(productType: AgreementProductType): string {
+  const base =
+    productType === "coopLoan"
+      ? getCoopLoanAgreementPlainText()
+      : productType === "easyInstallment"
+      ? getEasyInstallmentAgreementPlainText()
+      : getCreditCartAgreementPlainText();
+  return RECONSTRUCTED_TEXT_NOTE + base;
+}
+
+export interface LegacyBackfillResult {
+  loanRequests: number;
+  paSwipeRequests: number;
+  creditCartRequests: number;
+  total: number;
+}
+
+export async function backfillLegacyAgreements(adminUid: string): Promise<LegacyBackfillResult> {
+  const targets: { name: "loanRequests" | "paSwipeRequests" | "creditCartRequests"; productType: AgreementProductType }[] = [
+    { name: "loanRequests", productType: "coopLoan" },
+    { name: "paSwipeRequests", productType: "easyInstallment" },
+    { name: "creditCartRequests", productType: "creditCart" },
+  ];
+
+  const result: LegacyBackfillResult = {
+    loanRequests: 0,
+    paSwipeRequests: 0,
+    creditCartRequests: 0,
+    total: 0,
+  };
+
+  for (const { name, productType } of targets) {
+    const snap = await getDocs(collection(db, name));
+
+    const expectedText = currentReconstructedTextFor(productType);
+
+    const docsMissingRecord = snap.docs.filter((d) => !d.data()?.agreementAcceptance);
+
+    const docsNeedingTextTopUp = snap.docs.filter((d) => {
+      const acc = d.data()?.agreementAcceptance;
+      if (!acc) return false; // handled by docsMissingRecord above
+      if (!acc.agreementText) return true; // never had text at all — fill it
+      // Only re-stamp a record that was already an administrative
+      // backfill AND whose text is now out of date with current policy.
+      // A real user confirmation's agreementText is never touched here.
+      return acc.isLegacyBackfill === true && acc.agreementText !== expectedText;
+    });
+
+    const docsNeedingWork = [...docsMissingRecord, ...docsNeedingTextTopUp];
+
+    // Firestore batched writes cap at 500 ops — chunk defensively.
+    for (let i = 0; i < docsNeedingWork.length; i += 400) {
+      const chunk = docsNeedingWork.slice(i, i + 400);
+      const batch = writeBatch(db);
+
+      chunk.forEach((d) => {
+        const data = d.data();
+        const hasExistingRecord = !!data?.agreementAcceptance;
+
+        if (hasExistingRecord) {
+          // Top-up / re-stamp only: (re)write just the agreementText,
+          // leave everything else on the existing record untouched.
+          batch.update(d.ref, {
+            "agreementAcceptance.agreementText": expectedText,
+          });
+        } else {
+          const amount = data?.amount ?? data?.productSnapshot?.srp ?? null;
+
+          batch.update(d.ref, {
+            agreementAcceptance: {
+              agreementVersion: LEGACY_AGREEMENT_VERSION,
+              productType,
+              termsSnapshot: {
+                amount,
+                note:
+                  "This request predates the in-app agreement checkbox and was not confirmed by the requester through that flow. Administratively backfilled for record-keeping.",
+              },
+              agreementText: expectedText,
+              acceptedAt: serverTimestamp(),
+              isLegacyBackfill: true,
+              backfilledBy: adminUid,
+            },
+          });
+        }
+      });
+
+      await batch.commit();
+    }
+
+    result[name] = docsNeedingWork.length;
+  }
+
+  result.total = result.loanRequests + result.paSwipeRequests + result.creditCartRequests;
+  return result;
+}
+
+// ===========================================================
+// 🧾 GENERATE MISSING LOAN CONTRACTS — one-time admin action
+// ===========================================================
+// Coop loans approved before the loanContracts collection existed have no
+// generated contract document (unlike MLF Easy Installment / Marimar's
+// Credit Cart, which always got one at approval). This walks every
+// activeLoans doc, skips any that already have a matching loanContracts
+// doc (matched by requestId === activeLoans doc id), and generates one
+// for the rest — clearly flagged as an administrative backfill so it's
+// never mistaken for a contract generated at the actual approval moment.
+export interface LoanContractsBackfillResult {
+  generated: number;
+  skipped: number;
+}
+
+export async function backfillMissingLoanContracts(): Promise<LoanContractsBackfillResult> {
+  const activeLoansSnap = await getDocs(collection(db, "activeLoans"));
+  const existingContractsSnap = await getDocs(collection(db, "loanContracts"));
+
+  const existingRequestIds = new Set(
+    existingContractsSnap.docs
+      .map((d) => d.data()?.requestId)
+      .filter(Boolean)
+  );
+
+  let generated = 0;
+  let skipped = 0;
+
+  for (const loanDoc of activeLoansSnap.docs) {
+    const loanId = loanDoc.id;
+
+    if (existingRequestIds.has(loanId)) {
+      skipped++;
+      continue;
+    }
+
+    const data = loanDoc.data();
+    const amount = Number(data.principal ?? 0);
+    const termsMonths = Number(data.termsMonths ?? 0);
+    const monthlyInterestRate = Number(data.monthlyInterestRate ?? 0.10);
+    const totalInterest = Number(data.totalInterest ?? amount * monthlyInterestRate * termsMonths);
+    const totalPayable = Number(data.totalPayable ?? amount + totalInterest);
+    const paymentSchedule = data.paymentSchedule ?? "15-30";
+    const userId = data.userId ?? null;
+    const userName = data.borrowerName || (await getUserFullName(userId));
+
+    // 📌 purpose and the security guarantor (if any) live on the original
+    // loanRequests doc, not on activeLoans — same doc id as this loan.
+    const requestSnap = await getDoc(doc(db, "loanRequests", loanId));
+    const requestData = requestSnap.exists() ? requestSnap.data() : null;
+
+    let securityGuarantor: { name: string; relationship: string; phone: string } | null = null;
+    if (requestData?.securityGuarantorInviteId) {
+      const invite = await getInviteForRequest(loanId);
+      if (invite) {
+        securityGuarantor = {
+          name: invite.guarantorName,
+          relationship: invite.guarantorRelationship,
+          phone: invite.guarantorPhone,
+        };
+      }
+    }
+
+    const contractText = generateLoanContract({
+      memberName: userName,
+      amount,
+      termsMonths,
+      monthlyInterestRate,
+      totalInterest,
+      totalPayable,
+      paymentSchedule,
+      startDate: new Date().toLocaleDateString(),
+      purpose: requestData?.purpose ?? null,
+      securityGuarantor,
+      note:
+        "NOTE: This contract document was administratively regenerated from existing loan records — it was not generated at the original time of approval.",
+    });
+
+    const contractRef = doc(collection(db, "loanContracts"));
+    await setDoc(contractRef, {
+      requestId: loanId,
+      loanId,
+      userId,
+      userName,
+      amount,
+      termsMonths,
+      paymentSchedule,
+      totalInterest,
+      totalPayable,
+      contractText,
+      status: data.status === "completed" ? "completed" : "accepted",
+      isLegacyBackfill: true,
+      acceptedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+    });
+
+    generated++;
+  }
+
+  return { generated, skipped };
+}
 
 // ===========================================================
 // NEW: Get Cooperative Financial Pools & Earnings Summary
@@ -233,24 +479,40 @@ Thank you for your contribution!
 
   try {
     // ==============================
-    // 💰 UPDATE MEMBER + COOP
+    // 💰 UPDATE MEMBER + COOP + RECEIPT — ALL IN ONE BATCH
     // ==============================
-    await updateDoc(userRef, {
+    // Previously these were four separate sequential writes: if the
+    // receipt write (or the legacy payment write) failed partway through
+    // — a transient network blip, a rules hiccup — the member's balance
+    // and the coop totals had ALREADY been updated, but no receipt got
+    // created. The admin usually saw an error alert, assumed nothing had
+    // happened, and the money had in fact already moved — leaving a real
+    // gap between "shares paid" and "receipts on file" with no way to
+    // tell after the fact. A writeBatch makes all four atomic: either
+    // every write lands, or none of them do.
+    const fiscalYearStart = getFiscalYearStart(new Date());
+    const cacheIsCurrent = userData.sharesPaidCacheFiscalYearStartMs === fiscalYearStart.getTime();
+    const priorSharesPaidCache = cacheIsCurrent ? Number(userData.sharesPaidCache ?? 0) : 0;
+
+    const batch = writeBatch(db);
+
+    batch.update(userRef, {
       shareBalance: increment(amount),
+      sharesPaidCache: priorSharesPaidCache + monthsPaid,
+      sharesPaidCacheFiscalYearStartMs: fiscalYearStart.getTime(),
       updatedAt: serverTimestamp(),
     });
 
     const coopSummaryRef = doc(db, "coopFinancialSummary", "current_state");
-    await updateDoc(coopSummaryRef, {
+    batch.update(coopSummaryRef, {
       totalLendableFunds: increment(amount),
       totalShareCapital: increment(amount),
       lastUpdated: serverTimestamp(),
     });
 
-    // ==============================
     // 📜 SAVE RECEIPT (SOURCE OF TRUTH)
-    // ==============================
-    await addDoc(collection(db, "memberShareReceipts"), {
+    const receiptRef = doc(collection(db, "memberShareReceipts"));
+    batch.set(receiptRef, {
       type: "member_share",
       memberId: userId,
       memberName,
@@ -263,10 +525,9 @@ Thank you for your contribution!
       createdAt: serverTimestamp(),
     });
 
-    // ==============================
     // 🔁 LEGACY PAYMENT (KEEP)
-    // ==============================
-    await addDoc(collection(db, "payments"), {
+    const legacyPaymentRef = doc(collection(db, "payments"));
+    batch.set(legacyPaymentRef, {
       userId,
       amount,
       monthsPaid,
@@ -274,6 +535,8 @@ Thank you for your contribution!
       forYear: year,
       createdAt: serverTimestamp(),
     });
+
+    await batch.commit();
 
     console.log("✅ Share collected + receipt saved");
 

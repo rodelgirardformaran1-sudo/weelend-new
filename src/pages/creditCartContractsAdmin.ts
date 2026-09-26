@@ -1,6 +1,7 @@
 // src/pages/creditCartContractsAdmin.ts
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "../firebaseConfig";
+import { renderAgreementAcceptanceHtml } from "../utils/agreementDisplay";
 
 let clickBound = false;
 
@@ -30,10 +31,22 @@ export async function initCreditCartContractsAdmin(container: HTMLElement) {
 
   const statusColor: Record<string, string> = { awaiting_acceptance: "#ffc107", accepted: "#28a745", declined: "#dc3545" };
 
-  listEl.innerHTML = snap.docs.map((d) => {
+  listEl.innerHTML = (await Promise.all(snap.docs.map(async (d) => {
     const c = d.data() as any;
     const color = statusColor[c.status] || "#888";
     const categoryLabel = c.category === "grocery" ? "Grocery" : "Department Store / Shopping Spree";
+
+    // 📄 Agreement acceptance lives on the original creditCartRequests doc
+    // (requestId field on this contract), not on the contract itself.
+    let agreementAcceptance: any = null;
+    if (c.requestId) {
+      try {
+        const reqSnap = await getDoc(doc(db, "creditCartRequests", c.requestId));
+        agreementAcceptance = reqSnap.exists() ? reqSnap.data()?.agreementAcceptance ?? null : null;
+      } catch {
+        agreementAcceptance = null;
+      }
+    }
 
     return `
       <div class="card" style="margin-bottom:12px; padding:14px;">
@@ -42,6 +55,7 @@ export async function initCreditCartContractsAdmin(container: HTMLElement) {
           Buyer: <strong>${c.userName || c.userId}</strong> • ${c.termMonths} month(s) • Total: ₱${Number(c.totalPayable || 0).toLocaleString()}
         </div>
         <span style="background:${color}; color:white; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:700;">${c.status}</span>
+        ${renderAgreementAcceptanceHtml(agreementAcceptance)}
 
         <details style="margin-top:8px;">
           <summary style="cursor:pointer; font-size:13px; color:#555;">View full contract text</summary>
@@ -50,7 +64,7 @@ export async function initCreditCartContractsAdmin(container: HTMLElement) {
         </details>
       </div>
     `;
-  }).join("");
+  }))).join("");
 
   if (!clickBound) {
     clickBound = true;

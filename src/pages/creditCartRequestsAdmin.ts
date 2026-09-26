@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../firebaseConfig";
 import { generateCreditCartContract } from "../utils/generateCreditCartContract";
+import { renderAgreementAcceptanceHtml } from "../utils/agreementDisplay";
 
 let unsubscribeCreditCartReqs: (() => void) | null = null;
 let creditCartAdminClickBound = false;
@@ -225,6 +226,9 @@ export function initCreditCartRequestsAdmin(container: HTMLElement) {
               <div><strong>Total Payable:</strong> ${peso(r.totalPayable)}</div>
               <div><strong>Semi-Monthly Installment:</strong> ${peso(r.installmentAmount)}</div>
             </div>
+
+            ${renderAgreementAcceptanceHtml(r.agreementAcceptance)}
+
             <div style="display:flex; gap:10px; margin-top:14px;">
               <button class="request-loan-btn credit-cart-action-btn" data-action="approve" data-id="${requestId}">✅ Approve</button>
               <button class="deny-btn credit-cart-action-btn" data-action="deny" data-id="${requestId}">❌ Deny</button>

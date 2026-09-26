@@ -9,8 +9,9 @@ import {
 import { db } from "../firebaseConfig";
 import { getAuth } from "firebase/auth";
 import { getUserFullName } from "../services/userUtils";
-import { adminCorrectLoanSchedule } from "../services/loanService";
+import { adminCorrectLoanSchedule, adminUpdateInstallmentDueDate } from "../services/loanService";
 import { renderFinancialTotalsUI } from "./adminDashboard";
+import { renderAgreementAcceptanceHtml } from "../utils/agreementDisplay";
 
 // =======================================================
 // Types
@@ -22,6 +23,7 @@ interface LoanScheduleItem {
   principalDue?: number;
   interestDue?: number;
   paid?: boolean;
+  partial?: boolean;
   status?: "voided";
 }
 
@@ -73,6 +75,13 @@ export async function loadAdminLoanDetailsUI(
     const loan = loanSnap.data();
     const borrowerName = await getUserFullName(loan.userId);
 
+    // 📄 agreementAcceptance lives on the original loanRequests doc (same
+    // id as this activeLoans doc) — it isn't copied over at approval time.
+    const loanRequestSnap = await getDoc(doc(db, "loanRequests", loanId));
+    const agreementAcceptance = loanRequestSnap.exists()
+      ? loanRequestSnap.data()?.agreementAcceptance
+      : null;
+
     // =========================
     // LOAD SCHEDULE
     // =========================
@@ -106,6 +115,8 @@ export async function loadAdminLoanDetailsUI(
         <p><strong>Next Due Date:</strong> ${formatDate(loan.nextDueDate)}</p>
       </div>
 
+      ${renderAgreementAcceptanceHtml(agreementAcceptance)}
+
       <br/>
 
       <h4>📆 Repayment Schedule</h4>
@@ -117,21 +128,31 @@ export async function loadAdminLoanDetailsUI(
             <th>Principal</th>
             <th>Interest</th>
             <th>Status</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
     `;
 
     if (!schedules.length) {
-      html += `<tr><td colspan="5">No schedule found.</td></tr>`;
+      html += `<tr><td colspan="6">No schedule found.</td></tr>`;
     } else {
       for (const s of schedules) {
         const statusLabel =
           s.status === "voided"
             ? "🟥 Voided"
-            : s.paid
+            : s.paid && !s.partial
             ? "🟩 Paid"
+            : s.partial
+            ? "🟨 Partial"
             : "⬜ Unpaid";
+
+        // A fully paid or voided installment is a settled historical
+        // record — only unpaid/partial ones can have their due date
+        // corrected (e.g. money released before the in-app request,
+        // so the generated date doesn't match what was actually
+        // agreed in the group chat).
+        const canEditDate = isAdmin && s.status !== "voided" && !(s.paid && !s.partial) && loan.status === "active";
 
         html += `
           <tr>
@@ -140,6 +161,11 @@ export async function loadAdminLoanDetailsUI(
             <td>₱${Number(s.principalDue ?? 0).toLocaleString()}</td>
             <td>₱${Number(s.interestDue ?? 0).toLocaleString()}</td>
             <td>${statusLabel}</td>
+            <td>${
+              canEditDate
+                ? `<button class="edit-due-date-btn" data-schedule-id="${s.id}" data-current-date="${formatDate(s.dueDate)}">✏️ Edit Date</button>`
+                : ""
+            }</td>
           </tr>
         `;
       }
@@ -203,6 +229,51 @@ export async function loadAdminLoanDetailsUI(
         alert("✅ Payment schedule corrected.");
         loadAdminLoanDetailsUI(adminSectionContent, loanId);
       });
+
+    // ✏️ Per-installment due-date correction — e.g. the money was
+    // actually released before the in-app request, so the generated
+    // due date doesn't match what was agreed in the Facebook group chat.
+    container.querySelectorAll<HTMLButtonElement>(".edit-due-date-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const scheduleId = btn.dataset.scheduleId;
+        if (!scheduleId) return;
+
+        const currentDate = btn.dataset.currentDate ?? "";
+
+        const input = prompt(
+          `Current due date: ${currentDate}\n\n` +
+          `Enter the correct due date (YYYY-MM-DD):`
+        );
+        if (!input) return;
+
+        const newDueDate = new Date(`${input.trim()}T00:00:00`);
+        if (isNaN(newDueDate.getTime())) {
+          alert("❌ Invalid date. Please use the format YYYY-MM-DD, e.g. 2026-10-15.");
+          return;
+        }
+
+        const reason = prompt(
+          `Reason for correcting this due date (e.g. "money released 9/1, before in-app request"):`
+        );
+        if (!reason) return;
+
+        try {
+          await adminUpdateInstallmentDueDate({
+            loanId,
+            scheduleId,
+            newDueDate,
+            adminId: getAuth().currentUser!.uid,
+            reason,
+          });
+
+          alert("✅ Due date corrected.");
+          loadAdminLoanDetailsUI(adminSectionContent, loanId);
+        } catch (err: any) {
+          console.error("❌ Failed to correct due date:", err);
+          alert(`❌ ${err.message || "Failed to correct due date."}`);
+        }
+      });
+    });
 
   } catch (err) {
     console.error("❌ Admin loan details error:", err);

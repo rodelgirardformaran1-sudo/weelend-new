@@ -26,9 +26,21 @@ import { getUserLoanLimit } from "../services/loanService";
 // ✅ correct
 import { getUserFullName } from "../services/userService";
 import { formatDueDate } from "../services/loanService";
-import { getActiveLoanForMember, getLoanRequestForMember } from "../services/loanService";
+import { getActiveLoanForMember, getLoanRequestForMember, borrowerCompleteLoanRequest } from "../services/loanService";
 import { showPage } from "../main";
+import {
+  SECURITY_GUARANTOR_THRESHOLD,
+  requiresSecurityGuarantor,
+  buildGuarantorActivationLink,
+  type GuarantorInfoInput,
+} from "../services/securityGuarantorService";
+import { isUserIdentityVerified } from "../services/userService";
 import { loadBorrowerLoanHistory } from "./borrowerHistory";
+import { renderProfileCompletionBanner } from "../utils/profileNudgeBanner";
+import { renderDueDateBanner } from "../utils/dueDateNudgeBanner";
+import { renderCreditScoreBanner } from "../utils/creditScoreNudgeBanner";
+import { renderBorrowerQueueBanner } from "../utils/loanQueueBanner";
+import { buildAgreementAcceptance } from "../utils/loanAgreementModal";
 
 
 let currentUser: User | null = null;
@@ -92,6 +104,7 @@ async function loadGuarantorList(currentUid: string) {
 // Global DOM element references for the borrower dashboard
 const borrowerNameDisplay = document.getElementById("borrower-name-display");
 const borrowerLoanLimitCardDisplay = document.getElementById("borrower-loan-limit-display"); // Loan limit shown on dashboard card
+const borrowerCreditScoreDisplay = document.getElementById("borrower-credit-score");
 // PHASE 5 ADDITION: New DOM elements for guarantor status and current loan
 const borrowerGuarantorStatus = document.getElementById("borrower-guarantor-status");
 const borrowerGuarantorDetails = document.getElementById("borrower-guarantor-details");
@@ -107,6 +120,22 @@ const memberAvailableFundsDisplay = document.getElementById("member-available-fu
 // Loan Application Modal DOM elements
 const borrowerRequestLoanBtn = document.getElementById("borrower-request-loan-btn");
 const loanApplicationModal = document.getElementById("loan-application-modal");
+
+// 📝 "Continue Your Request" completion modal — for admin-filed requests
+// left with no agreementAcceptance and/or securityGuarantorPending:true
+// (see borrowerCompleteLoanRequest)
+const completeRequestBanner = document.getElementById("borrower-complete-request-banner");
+const completeRequestBannerText = document.getElementById("borrower-complete-request-banner-text");
+const continueRequestBtn = document.getElementById("borrower-continue-request-btn");
+const completeRequestModal = document.getElementById("complete-request-modal");
+const closeCompleteRequestModalBtn = document.getElementById("close-complete-request-modal");
+const completeRequestForm = document.getElementById("complete-request-form");
+const completeRequestMessage = document.getElementById("complete-request-message");
+const completeRequestAgreementSection = document.getElementById("complete-request-agreement-section");
+const completeRequestAgreementSummary = document.getElementById("complete-request-agreement-summary");
+const completeRequestAgreementCheckbox = document.getElementById("complete-request-agreement-checkbox") as HTMLInputElement | null;
+const completeRequestGuarantorSection = document.getElementById("complete-request-guarantor-section");
+let pendingRequestToComplete: { id: string; amount: number; termsMonths: number; paymentSchedule?: string; needsAgreement: boolean; needsGuarantor: boolean } | null = null;
 const loanApplicationModalCloseBtn = document.getElementById("loan-application-modal-close");
 const loanAmountInput = document.getElementById("loan-amount-input") as HTMLInputElement | null;
 const loanPurposeSelect = document.getElementById("loan-purpose-select") as HTMLSelectElement | null;
@@ -132,6 +161,24 @@ export async function initBorrowerDashboard(user: User | null) {
     console.log("BORROWER DASHBOARD: Initializing for UID:", user.uid);
     currentUser = user; // ✅ STORE USER ONCE
 
+    // 🔔 Due-date nudge banner — non-blocking, fetched once per dashboard
+    // load (not on every profile snapshot) since it's its own Firestore
+    // read across the user's active loan(s) schedule.
+    renderDueDateBanner(
+      document.querySelector<HTMLElement>("#page-dashboard-borrower .dp-header"),
+      user.uid,
+      (loanId) => {
+        import("./borrowerLoanDetails").then((m) => m.loadBorrowerLoanDetails(loanId));
+      }
+    );
+
+    // 🎫 Loan-request queue banner — informs the borrower where their
+    // own pending request stands in the priority queue.
+    renderBorrowerQueueBanner(
+      document.querySelector<HTMLElement>("#page-dashboard-borrower .dp-header"),
+      user.uid
+    );
+
     // Set up real-time listener for the user's profile
     const userRef = doc(db, "users", user.uid);
     onSnapshot(userRef, async (docSnap) => {
@@ -142,6 +189,16 @@ export async function initBorrowerDashboard(user: User | null) {
         const latestUserProfile = docSnap.data() as UserProfile;
 
             console.log("BORROWER DASHBOARD: Real-time update received. User Profile:", latestUserProfile);
+
+            // ⚠️ Nudge banner — missing emergency contact and/or ID verification
+            renderProfileCompletionBanner(
+              document.querySelector<HTMLElement>("#page-dashboard-borrower .dp-header"),
+              latestUserProfile,
+              () => {
+                showPage("page-borrower-profile");
+                import("./editProfile").then(m => m.initEditProfile("borrower"));
+              }
+            );
 
             // Update borrower's name dynamically
             if (borrowerNameDisplay) {
@@ -156,6 +213,23 @@ export async function initBorrowerDashboard(user: User | null) {
             } else {
                 console.warn("BORROWER DASHBOARD: Element 'borrower-loan-limit-display' not found.");
             }
+
+            // 🏆 Credit score — starts at 100 (DEFAULT_CREDIT_SCORE), adjusted
+            // per coop-loan installment (late payment lowers it, on-time
+            // raises it — see services/creditEngine.ts). Same number that
+            // ranks their loan requests against everyone else's.
+            const borrowerCreditScore = Number(latestUserProfile.creditScore ?? 100);
+            if (borrowerCreditScoreDisplay) {
+                borrowerCreditScoreDisplay.textContent = String(borrowerCreditScore);
+                borrowerCreditScoreDisplay.style.background =
+                    borrowerCreditScore >= 90 ? "#e6f4ea" : borrowerCreditScore >= 70 ? "#fff3cd" : "#fdecea";
+                borrowerCreditScoreDisplay.style.color =
+                    borrowerCreditScore >= 90 ? "#1e7e34" : borrowerCreditScore >= 70 ? "#7a5b00" : "#a12e21";
+            }
+            renderCreditScoreBanner(
+                document.querySelector<HTMLElement>("#page-dashboard-borrower .dp-header"),
+                borrowerCreditScore
+            );
 
             // Update loan limit display IN THE MODAL whenever profile updates
             if (currentLoanLimitSpan && loanAmountInput) {
@@ -195,6 +269,40 @@ export async function initBorrowerDashboard(user: User | null) {
             // PHASE 5 ADDITION: Populate Current Loan Card
             const pendingLoan = await getLoanRequestForMember(currentUser!.uid);
             const activeLoan = await getActiveLoanForMember(currentUser!.uid);
+
+            // ⚠️ "Continue Your Request" banner — shows only when there's a
+            // pending request (usually admin-filed) still missing the
+            // borrower's own agreement confirmation and/or their security
+            // guarantor's details (see borrowerCompleteLoanRequest).
+            if (completeRequestBanner) {
+              const p = pendingLoan as any;
+              const needsAgreement = !!p && !p.agreementAcceptance;
+              const needsGuarantor = !!p && !!p.securityGuarantorPending && !p.securityGuarantorInviteId;
+
+              if (p && (needsAgreement || needsGuarantor)) {
+                completeRequestBanner.style.display = "block";
+                pendingRequestToComplete = {
+                  id: p.id,
+                  amount: p.amount ?? 0,
+                  termsMonths: p.termsMonths ?? 1,
+                  paymentSchedule: p.paymentSchedule,
+                  needsAgreement,
+                  needsGuarantor,
+                };
+                if (completeRequestBannerText) {
+                  if (needsAgreement && needsGuarantor) {
+                    completeRequestBannerText.textContent = "Please confirm the loan agreement and add your security guarantor's details so your request can move forward.";
+                  } else if (needsAgreement) {
+                    completeRequestBannerText.textContent = "Please review and confirm the loan agreement so your request can move forward.";
+                  } else {
+                    completeRequestBannerText.textContent = "A security guarantor is required for loans over ₱10,000. Please add their details so your request can move forward.";
+                  }
+                }
+              } else {
+                completeRequestBanner.style.display = "none";
+                pendingRequestToComplete = null;
+              }
+            }
 
             if (borrowerCurrentLoanAmount && borrowerCurrentLoanDueDate && borrowerCurrentLoanStatus) {
 
@@ -266,6 +374,40 @@ export async function initBorrowerDashboard(user: User | null) {
 borrowerRequestLoanBtn?.addEventListener("click", async () => {
   if (!loanApplicationModal || !currentUser) return;
 
+  // 🛡️ Don't let a borrower open a new loan request while they already
+  // have an active (unpaid) loan or an existing request still awaiting
+  // admin approval — otherwise they can stack multiple concurrent
+  // requests/loans, which nothing downstream expects.
+  try {
+    const [existingActiveLoan, existingPendingRequest] = await Promise.all([
+      getActiveLoanForMember(currentUser.uid),
+      getLoanRequestForMember(currentUser.uid),
+    ]);
+
+    if (existingActiveLoan) {
+      // ⚠️ loanRequestMessage lives inside the (still-closed) loan modal,
+      // so setting its text here is invisible to the borrower — alert()
+      // too so they actually see why nothing opened.
+      if (loanRequestMessage) {
+        loanRequestMessage.textContent = "⚠️ You already have an active loan. Please finish paying it off before requesting a new one.";
+      }
+      alert("⚠️ You already have an active loan. Please finish paying it off before requesting a new one.");
+      return;
+    }
+
+    if (existingPendingRequest) {
+      if (loanRequestMessage) {
+        loanRequestMessage.textContent = "⚠️ You already have a loan request awaiting admin approval. Please wait for it to be processed before submitting another.";
+      }
+      alert("⚠️ You already have a loan request awaiting admin approval. Please wait for it to be processed before submitting another.");
+      return;
+    }
+  } catch (err) {
+    console.error("❌ Failed checking existing loan/request before opening loan modal:", err);
+    // Fail open rather than blocking a legitimate request over a lookup glitch —
+    // the request-time checks elsewhere still apply.
+  }
+
   // Open modal
   loanApplicationModal.classList.add("active");
 
@@ -323,6 +465,14 @@ async function submitLoanRequestFinal() {
 
   console.log("✅ currentUser OK");
 
+  // 🪪 Require an admin-approved identity verification before a loan can
+  // even be submitted.
+  if (!(await isUserIdentityVerified(currentUser.uid))) {
+    loanRequestMessage!.textContent =
+      "⚠️ Please complete your Identity Verification in Edit Profile (and wait for admin approval) before requesting a loan.";
+    return;
+  }
+
 if (!loanPurposeSelect) {
   console.warn("⛔ Missing loanPurposeSelect");
   loanRequestMessage!.textContent = "Form error. Please refresh.";
@@ -354,6 +504,43 @@ if (!loanPurposeSelect) {
     return;
   }
 
+  // 🛡️ Security guarantor info (required over ₱10,000)
+  let securityGuarantorInfo: GuarantorInfoInput | undefined;
+
+  if (requiresSecurityGuarantor(amount)) {
+    const nameInput = document.getElementById("loan-guarantor-name") as HTMLInputElement | null;
+    const relInput = document.getElementById("loan-guarantor-relationship") as HTMLInputElement | null;
+    const phoneInput = document.getElementById("loan-guarantor-phone") as HTMLInputElement | null;
+    const emailInput = document.getElementById("loan-guarantor-email") as HTMLInputElement | null;
+    const streetInput = document.getElementById("loan-guarantor-home-street") as HTMLInputElement | null;
+    const barangayInput = document.getElementById("loan-guarantor-home-barangay") as HTMLInputElement | null;
+    const cityInput = document.getElementById("loan-guarantor-home-city") as HTMLInputElement | null;
+    const provinceInput = document.getElementById("loan-guarantor-home-province") as HTMLInputElement | null;
+    const zipInput = document.getElementById("loan-guarantor-home-zip") as HTMLInputElement | null;
+
+    const name = nameInput?.value.trim() || "";
+    const relationship = relInput?.value.trim() || "";
+    const phone = phoneInput?.value.trim() || "";
+    const email = emailInput?.value.trim() || "";
+    const street = streetInput?.value.trim() || "";
+    const barangay = barangayInput?.value.trim() || "";
+    const city = cityInput?.value.trim() || "";
+    const province = provinceInput?.value.trim() || "";
+    const zip = zipInput?.value.trim() || "";
+
+    if (!name || !relationship || !phone || !email || !street || !barangay || !city || !province || !zip) {
+      loanRequestMessage!.textContent = `⚠️ Loans over ₱${SECURITY_GUARANTOR_THRESHOLD.toLocaleString()} require complete security guarantor details.`;
+      return;
+    }
+
+    securityGuarantorInfo = {
+      name,
+      relationship,
+      phone,
+      email,
+      homeAddress: { street, barangay, city, province, zip },
+    };
+  }
 
   loanRequestMessage!.textContent = "Submitting loan request...";
   submitLoanRequestBtn!.setAttribute("disabled", "true");
@@ -373,21 +560,44 @@ if (!loanPurposeSelect) {
 const purpose = loanPurposeSelect.value || "";
 const guarantorId = guarantorSelect?.value || undefined;
 
-await requestLoan(
+// 📄 Build the persisted proof-of-agreement record from the exact terms
+// shown in the agreement modal the user just checked and confirmed.
+const finalSchedule = paymentScheduleSelect?.value ?? "15-30";
+const agreementSummary = buildLoanAgreementSummary(amount, termsMonths, finalSchedule);
+const agreementAcceptance = buildAgreementAcceptance("coopLoan", {
+  amount: agreementSummary.amount,
+  monthlyInterestRate: agreementSummary.monthlyInterestRate,
+  totalInterest: agreementSummary.totalInterest,
+  totalPayable: agreementSummary.totalPayable,
+  termsMonths: agreementSummary.termsMonths,
+  schedule: agreementSummary.schedule,
+  lateFee: agreementSummary.lateFee,
+  escalatedLateFee: agreementSummary.escalatedLateFee,
+});
+
+const { securityGuarantorInviteId } = await requestLoan(
   amount,                                  // amount
   purpose,                                // purpose
   termsMonths,                            // termsMonths
   guarantorId,                            // guarantorId
-  paymentScheduleSelect?.value ?? "15-30",// paymentSchedule
-  idDocumentUrl                           // idDocumentUrl
+  finalSchedule,                          // paymentSchedule
+  idDocumentUrl,                          // idDocumentUrl
+  undefined,                              // coeDocumentUrl (not collected in this flow)
+  securityGuarantorInfo,                  // securityGuarantorInfo
+  agreementAcceptance                     // agreementAcceptance
 );
 
-  loanRequestMessage!.textContent =
-    "⏳ Loan request submitted. Waiting for admin approval.";
+  loanRequestMessage!.textContent = securityGuarantorInviteId
+    ? `⏳ Loan request submitted. Share this link with your security guarantor so they can verify: ${buildGuarantorActivationLink(securityGuarantorInviteId)}`
+    : "⏳ Loan request submitted. Waiting for admin approval.";
 
   setTimeout(() => {
     loanApplicationModal?.classList.remove("active");
-    loanRequestMessage!.textContent = "";
+    // Leave the guarantor link on screen so the borrower can copy it —
+    // only auto-clear the plain "waiting for approval" message.
+    if (!securityGuarantorInviteId) {
+      loanRequestMessage!.textContent = "";
+    }
   }, 1500);
 
 // 4️⃣ Reset form (null-safe)
@@ -465,6 +675,13 @@ function refreshPreview() {
 
     totalPreview &&
       (totalPreview.textContent = `₱${total.toLocaleString()}`);
+
+    // 🛡️ Show/hide the security guarantor section as the slider crosses
+    // the ₱10,000 threshold.
+    const guarantorSection = document.getElementById("loan-security-guarantor-section");
+    if (guarantorSection) {
+      guarantorSection.style.display = requiresSecurityGuarantor(amount) ? "block" : "none";
+    }
   }
 
 amtSlider.addEventListener("input", refreshPreview);
@@ -572,6 +789,12 @@ function openLoanAgreementModal() {
     </ul>
   `;
 
+  // 📄 Reset the "I agree" checkbox + confirm button every time the modal
+  // opens, so a previous acceptance can never silently carry over.
+  const agreementCheckboxEl = document.getElementById("loan-agreement-checkbox") as HTMLInputElement | null;
+  if (agreementCheckboxEl) agreementCheckboxEl.checked = false;
+  if (agreementConfirmBtn) agreementConfirmBtn.disabled = true;
+
   document
     .getElementById("loan-agreement-modal")
     ?.classList.add("active");
@@ -595,12 +818,32 @@ agreementCancelBtn?.addEventListener("click", () => {
     ?.classList.remove("active");
 });
 
+// 📄 Required "I agree" checkbox — the confirm button stays disabled
+// until it's checked, so there's no way to submit without it.
+const agreementCheckboxToggle = document.getElementById(
+  "loan-agreement-checkbox"
+) as HTMLInputElement | null;
+
+agreementCheckboxToggle?.addEventListener("change", () => {
+  if (agreementConfirmBtn) {
+    agreementConfirmBtn.disabled = !agreementCheckboxToggle.checked;
+  }
+});
+
 agreementConfirmBtn?.addEventListener("click", async (e) => {
   e.preventDefault();
 
   console.log("✅ Agreement CONFIRM clicked");
 
   if (agreementConfirmBtn.disabled) return;
+
+  const agreementCheckboxEl = document.getElementById("loan-agreement-checkbox") as HTMLInputElement | null;
+  if (!agreementCheckboxEl?.checked) {
+    if (loanRequestMessage) {
+      loanRequestMessage.textContent = "⚠️ Please check the box confirming you agree to the terms before submitting.";
+    }
+    return;
+  }
 
   agreementConfirmBtn.disabled = true;
 
@@ -611,6 +854,159 @@ agreementConfirmBtn?.addEventListener("click", async (e) => {
     ?.classList.remove("active");
 
   agreementConfirmBtn.disabled = false;
+});
+
+// =======================================================
+// 📝 CONTINUE YOUR REQUEST MODAL (borrower self-service completion
+// of an admin-filed request — agreement confirmation +/- guarantor)
+// =======================================================
+
+// Open modal from the banner button
+continueRequestBtn?.addEventListener("click", () => {
+  if (!pendingRequestToComplete) return;
+  if (completeRequestMessage) completeRequestMessage.textContent = "";
+
+  // Show/hide the two sections based on what this specific request needs
+  if (completeRequestAgreementSection) {
+    completeRequestAgreementSection.style.display = pendingRequestToComplete.needsAgreement ? "block" : "none";
+  }
+  if (completeRequestGuarantorSection) {
+    completeRequestGuarantorSection.style.display = pendingRequestToComplete.needsGuarantor ? "block" : "none";
+  }
+  if (completeRequestAgreementCheckbox) completeRequestAgreementCheckbox.checked = false;
+
+  // Render the agreement summary from the terms admin already filed
+  if (pendingRequestToComplete.needsAgreement && completeRequestAgreementSummary) {
+    const schedule = pendingRequestToComplete.paymentSchedule ?? "15-30";
+    const agreement = buildLoanAgreementSummary(
+      pendingRequestToComplete.amount,
+      pendingRequestToComplete.termsMonths,
+      schedule
+    );
+    completeRequestAgreementSummary.innerHTML = `
+      <ul>
+        <li><strong>Loan Amount:</strong> ₱${agreement.amount.toLocaleString()}</li>
+        <li><strong>Interest Rate:</strong> 10% per month</li>
+        <li><strong>Total Interest (${agreement.termsMonths} months):</strong> ₱${agreement.totalInterest.toLocaleString()}</li>
+        <li><strong>Total Payable:</strong> ₱${agreement.totalPayable.toLocaleString()}</li>
+        <li><strong>Terms:</strong> ${agreement.termsMonths} months</li>
+        <li><strong>Payment Schedule:</strong> ${agreement.schedule}</li>
+        <li><strong>Late Fee:</strong> 3% (5% after 15 days)</li>
+      </ul>
+    `;
+  }
+
+  completeRequestModal?.classList.add("active");
+});
+
+// Close modal (X button)
+closeCompleteRequestModalBtn?.addEventListener("click", () => {
+  completeRequestModal?.classList.remove("active");
+  if (completeRequestMessage) completeRequestMessage.textContent = "";
+});
+
+// Submit
+completeRequestForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (completeRequestMessage) completeRequestMessage.textContent = "";
+
+  if (!currentUser) {
+    if (completeRequestMessage) completeRequestMessage.textContent = "Authentication error. Please log in again.";
+    return;
+  }
+  if (!pendingRequestToComplete) {
+    if (completeRequestMessage) completeRequestMessage.textContent = "No pending request found. Please refresh and try again.";
+    return;
+  }
+
+  const { id, amount, termsMonths, paymentSchedule, needsAgreement, needsGuarantor } = pendingRequestToComplete;
+
+  let agreementAcceptance: ReturnType<typeof buildAgreementAcceptance> | undefined;
+  if (needsAgreement) {
+    if (!completeRequestAgreementCheckbox?.checked) {
+      if (completeRequestMessage) {
+        completeRequestMessage.textContent = "⚠️ Please check the box confirming you agree to the terms before submitting.";
+      }
+      return;
+    }
+    const schedule = paymentSchedule ?? "15-30";
+    const summary = buildLoanAgreementSummary(amount, termsMonths, schedule);
+    agreementAcceptance = buildAgreementAcceptance("coopLoan", {
+      amount: summary.amount,
+      monthlyInterestRate: summary.monthlyInterestRate,
+      totalInterest: summary.totalInterest,
+      totalPayable: summary.totalPayable,
+      termsMonths: summary.termsMonths,
+      schedule: summary.schedule,
+      lateFee: summary.lateFee,
+      escalatedLateFee: summary.escalatedLateFee,
+    });
+  }
+
+  let securityGuarantorInfo: GuarantorInfoInput | undefined;
+  if (needsGuarantor) {
+    const nameInput = document.getElementById("sg-guarantor-name") as HTMLInputElement | null;
+    const relInput = document.getElementById("sg-guarantor-relationship") as HTMLInputElement | null;
+    const phoneInput = document.getElementById("sg-guarantor-phone") as HTMLInputElement | null;
+    const emailInput = document.getElementById("sg-guarantor-email") as HTMLInputElement | null;
+    const streetInput = document.getElementById("sg-guarantor-home-street") as HTMLInputElement | null;
+    const barangayInput = document.getElementById("sg-guarantor-home-barangay") as HTMLInputElement | null;
+    const cityInput = document.getElementById("sg-guarantor-home-city") as HTMLInputElement | null;
+    const provinceInput = document.getElementById("sg-guarantor-home-province") as HTMLInputElement | null;
+    const zipInput = document.getElementById("sg-guarantor-home-zip") as HTMLInputElement | null;
+
+    const name = nameInput?.value.trim() || "";
+    const relationship = relInput?.value.trim() || "";
+    const phone = phoneInput?.value.trim() || "";
+    const email = emailInput?.value.trim() || "";
+    const street = streetInput?.value.trim() || "";
+    const barangay = barangayInput?.value.trim() || "";
+    const city = cityInput?.value.trim() || "";
+    const province = provinceInput?.value.trim() || "";
+    const zip = zipInput?.value.trim() || "";
+
+    if (!name || !relationship || !phone || !email || !street || !barangay || !city || !province || !zip) {
+      if (completeRequestMessage) {
+        completeRequestMessage.textContent = `⚠️ Please fill in all security guarantor details.`;
+      }
+      return;
+    }
+
+    securityGuarantorInfo = {
+      name,
+      relationship,
+      phone,
+      email,
+      homeAddress: { street, barangay, city, province, zip },
+    };
+  }
+
+  const submitBtn = document.getElementById("submit-complete-request-btn") as HTMLButtonElement | null;
+  if (submitBtn) submitBtn.disabled = true;
+  if (completeRequestMessage) completeRequestMessage.textContent = "Submitting...";
+
+  try {
+    await borrowerCompleteLoanRequest({
+      requestId: id,
+      userId: currentUser.uid,
+      agreementAcceptance,
+      securityGuarantorInfo,
+    });
+
+    completeRequestModal?.classList.remove("active");
+    if (completeRequestBanner) completeRequestBanner.style.display = "none";
+    pendingRequestToComplete = null;
+    (e.target as HTMLFormElement).reset();
+    alert("✅ Thank you! Your request has been updated and can now proceed once it's your turn.");
+  } catch (err: any) {
+    console.error("❌ Failed to complete loan request:", err);
+    if (completeRequestMessage) {
+      completeRequestMessage.textContent = `❌ Failed to submit: ${err.message || err}`;
+    }
+    alert(`❌ Failed to submit: ${err.message || err}`);
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
 });
 
 // =======================================================

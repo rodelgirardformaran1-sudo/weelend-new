@@ -9,7 +9,7 @@ import {
 } from "firebase/auth";
 
 import type { User } from "firebase/auth";
-import { createUserProfile } from "./userService";
+import { createUserProfile, type NewUserProfileInput } from "./userService";
 
 // ✅ Auth instance
 const auth = getAuth(app);
@@ -20,9 +20,7 @@ const auth = getAuth(app);
 export async function register(
   email: string,
   password: string,
-  firstName: string,
-  lastName: string,
-  role: string           // NEW 👈
+  profile: NewUserProfileInput
 ) {
   console.log("🟡 register() started");
 
@@ -46,13 +44,11 @@ export async function register(
       throw tokenError; // Re-throw to ensure createUserProfile isn't called with potentially stale token
     }
 
-    console.log("🟢 register: Role being passed to createUserProfile is:", role);
+    console.log("🟢 register: Role being passed to createUserProfile is:", profile.role);
 
     await createUserProfile(user, { // Pass the user object
-      firstName,
-      lastName,
+      ...profile,
       email,
-      role
     });
 
     console.log("🟢 Firestore profile write attempted and completed successfully");
@@ -90,9 +86,46 @@ export function listenToAuthChanges(
 // ==========================
 // ROLE HELPERS
 // ==========================
-import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 const db = getFirestore(app);
+
+// ==========================
+// SECURITY GUARANTOR ACCOUNT CREATION
+// ==========================
+// A security guarantor is a lightweight, separate kind of account — they
+// aren't a coop member or borrower, so they don't go through the normal
+// signup form or the pending-approval queue. Their profile is minimal:
+// just enough to sign in and complete their own identity verification.
+export async function registerSecurityGuarantor(
+  email: string,
+  password: string,
+  fullName: string,
+  phoneNumber: string
+): Promise<User> {
+  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  const user = credential.user;
+
+  await user.getIdToken(true);
+
+  await setDoc(doc(db, "users", user.uid), {
+    uid: user.uid,
+    email,
+    firstName: fullName,
+    middleName: "",
+    lastName: "",
+    fullName,
+    phoneNumber,
+    role: "security_guarantor",
+    // No coop-membership approval queue for this role — they're not a
+    // member/borrower, so they skip straight past the pending-approval gate.
+    status: "approved",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  return user;
+}
 
 /** Fetch current user's profile doc from Firestore */
 export async function getCurrentUserProfile() {

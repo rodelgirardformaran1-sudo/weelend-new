@@ -63,51 +63,128 @@ export async function loadRepaymentsUI(target: HTMLElement) {
 
   const loans = await getAllActiveLoans();
 
-  let rows = "";
+  // ⚡ PERFORMANCE FIX: this used to fetch each loan's borrower name AND
+  // its repayment schedule one loan at a time — 2 sequential Firestore
+  // round trips per loan, awaited one after another in the render loop
+  // below. Fetching everything in parallel up front (deduping repeat
+  // borrowers across multiple loans) turns that into one wave of
+  // concurrent reads instead of 2×N in a row.
+  const uniqueBorrowerIds = [...new Set(loans.map((l) => l.userId))];
+  const [borrowerNamesEntries, scheduleEntries] = await Promise.all([
+    Promise.all(
+      uniqueBorrowerIds.map(async (uid) => [uid, await getUserFullName(uid)] as const)
+    ),
+    Promise.all(
+      loans.map(
+        async (loan) => [loan.id, (await getRepaymentSchedule(loan.id)) as RepaymentScheduleItem[]] as const
+      )
+    ),
+  ]);
+  const borrowerNames = new Map(borrowerNamesEntries);
+  const schedulesByLoanId = new Map(scheduleEntries);
+
+  // 🗂️ Flatten every unpaid installment across every loan into one list
+  // first (each carrying its borrower + loan info), before grouping —
+  // easier to sort and group than building HTML row-by-row as we go.
+  type FlatInstallment = {
+    loan: (typeof loans)[number];
+    item: RepaymentScheduleItem;
+    borrowerName: string;
+    principal: number;
+    interest: number;
+    lateRate: number;
+    totalDue: number;
+    dueDateMs: number;
+  };
+
+  const flatInstallments: FlatInstallment[] = [];
 
   for (const loan of loans) {
-    const borrowerName = await getUserFullName(loan.userId);
-    const schedule = (await getRepaymentSchedule(loan.id)) as RepaymentScheduleItem[];
-
+    const borrowerName = borrowerNames.get(loan.userId) ?? "Unknown";
+    const schedule = schedulesByLoanId.get(loan.id) ?? [];
 
     const unpaid = schedule.filter(
-  s => (s.status !== "voided") && (!s.paid || s.partial)
-);
-
+      s => (s.status !== "voided") && (!s.paid || s.partial)
+    );
 
     for (const item of unpaid) {
       const principal = Number(item.principalDue ?? 0);
       const interest = Number(item.interestDue ?? 0);
       const base = Number(item.remainingDue ?? (principal + interest));
-
       const lateRate = computeLateFeeRate(item.dueDate);
       const lateFee = base * lateRate;
 
-      rows += `
+      const parsedDue =
+        item.dueDate?.toDate ? item.dueDate.toDate() :
+        item.dueDate instanceof Date ? item.dueDate :
+        new Date(item.dueDate);
+
+      flatInstallments.push({
+        loan,
+        item,
+        borrowerName,
+        principal,
+        interest,
+        lateRate,
+        totalDue: base + lateFee,
+        dueDateMs: isNaN(parsedDue.getTime()) ? Infinity : parsedDue.getTime(),
+      });
+    }
+  }
+
+  if (!flatInstallments.length) {
+    target.innerHTML = `<h2>💸 Repayments</h2><p>😎 No unpaid installments.</p>`;
+    return;
+  }
+
+  // 🗂️ Group by borrower, sort borrowers A→Z, and sort each borrower's
+  // own installments soonest-due-first — instead of one long table
+  // mixing every borrower and due date together, admin picks a name
+  // from an alphabetical list and opens it to see exactly what's due,
+  // already in order.
+  const groups = new Map<string, FlatInstallment[]>();
+  for (const flat of flatInstallments) {
+    const key = flat.loan.userId;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(flat);
+  }
+
+  const sortedBorrowerIds = [...groups.keys()].sort((a, b) =>
+    (groups.get(a)![0].borrowerName || "").localeCompare(groups.get(b)![0].borrowerName || "")
+  );
+
+  let groupsHtml = "";
+
+  for (const borrowerId of sortedBorrowerIds) {
+    const installments = groups.get(borrowerId)!.sort((a, b) => a.dueDateMs - b.dueDateMs);
+    const borrowerName = installments[0].borrowerName;
+
+    let rowsHtml = "";
+    for (const flat of installments) {
+      rowsHtml += `
         <tr>
-          <td>${borrowerName}</td>
-          <td>${formatDate(item.dueDate)}</td>
-          <td>₱${principal.toLocaleString()}</td>
-          <td>₱${interest.toLocaleString()}</td>
-          <td>${lateRate > 0 ? (lateRate * 100) + "%" : "-"}</td>
-          <td>₱${(base + lateFee).toLocaleString()}</td>
-          <td>
+          <td data-label="Due Date">${formatDate(flat.item.dueDate)}</td>
+          <td data-label="Principal">₱${flat.principal.toLocaleString()}</td>
+          <td data-label="Interest">₱${flat.interest.toLocaleString()}</td>
+          <td data-label="Late %">${flat.lateRate > 0 ? (flat.lateRate * 100) + "%" : "-"}</td>
+          <td data-label="Total Due">₱${flat.totalDue.toLocaleString()}</td>
+          <td data-label="Action" class="admin-table-actions">
             <button class="btn-confirm collect-full-btn"
-              data-loanid="${loan.id}"
-              data-scheduleid="${item.id}"
-              data-userid="${loan.userId}"
-              data-principal="${principal}"
-              data-interest="${interest}"
-              data-laterate="${lateRate}"
+              data-loanid="${flat.loan.id}"
+              data-scheduleid="${flat.item.id}"
+              data-userid="${flat.loan.userId}"
+              data-principal="${flat.principal}"
+              data-interest="${flat.interest}"
+              data-laterate="${flat.lateRate}"
             >
               Collect Full
             </button>
 
             <button class="btn-cancel collect-partial-btn"
-              data-loanid="${loan.id}"
-              data-scheduleid="${item.id}"
-              data-userid="${loan.userId}"
-              data-balance="${loan.remainingBalance}"
+              data-loanid="${flat.loan.id}"
+              data-scheduleid="${flat.item.id}"
+              data-userid="${flat.loan.userId}"
+              data-balance="${flat.loan.remainingBalance}"
             >
               Partial
             </button>
@@ -115,31 +192,38 @@ export async function loadRepaymentsUI(target: HTMLElement) {
         </tr>
       `;
     }
-  }
 
-  if (!rows) {
-    target.innerHTML = `<h2>💸 Repayments</h2><p>😎 No unpaid installments.</p>`;
-    return;
+    groupsHtml += `
+      <details class="repayment-group">
+        <summary class="repayment-group-summary">
+          <span>${borrowerName}</span>
+          <span class="repayment-group-count">${installments.length} due</span>
+        </summary>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Due Date</th>
+              <th>Principal</th>
+              <th>Interest</th>
+              <th>Late %</th>
+              <th>Total Due</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </details>
+    `;
   }
 
   target.innerHTML = `
     <h2>💸 Repayments</h2>
-    <table class="admin-table">
-      <thead>
-        <tr>
-          <th>Borrower</th>
-          <th>Due Date</th>
-          <th>Principal</th>
-          <th>Interest</th>
-          <th>Late %</th>
-          <th>Total Due</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows}
-      </tbody>
-    </table>
+    <p class="muted" style="font-size:13px; margin-top:-6px;">Grouped by borrower, A–Z. Tap a name to see their installments, soonest due first.</p>
+    <div id="repayments-groups">
+      ${groupsHtml}
+    </div>
   `;
 
   // -------- FULL COLLECTION --------

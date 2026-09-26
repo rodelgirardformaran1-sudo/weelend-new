@@ -32,7 +32,9 @@ function downloadText(filename: string, text: string) {
 }
 
 function contractCollectionFor(source: string) {
-  return source === "creditcart" ? "creditCartContracts" : "paSwipeContracts";
+  if (source === "creditcart") return "creditCartContracts";
+  if (source === "loan") return "loanContracts";
+  return "paSwipeContracts";
 }
 
 // ✅ Guards to prevent listener stacking
@@ -71,8 +73,8 @@ export async function initPaSwipeContractsPage() {
 
 export async function renderPaSwipeContractsPage(container: HTMLElement) {
   container.innerHTML = `
-    <h2>Pa-Swipe Contracts</h2>
-    <p class="muted">Review and accept your installment agreement(s).</p>
+    <h2>My Contracts</h2>
+    <p class="muted">Every WeeLend loan, installment, or credit agreement you've made — Coop Loan, MLF Easy Installment, and Marimar's Credit Cart.</p>
 
     <div id="contracts-state" class="muted">Loading...</div>
     <div id="contracts-list" class="contracts-list"></div>
@@ -89,14 +91,16 @@ export async function renderPaSwipeContractsPage(container: HTMLElement) {
     return;
   }
 
-  const [paSwipeSnap, creditCartSnap] = await Promise.all([
+  const [paSwipeSnap, creditCartSnap, loanSnap] = await Promise.all([
     getDocs(query(collection(db, "paSwipeContracts"), where("userId", "==", user.uid), orderBy("createdAt", "desc"))),
     getDocs(query(collection(db, "creditCartContracts"), where("userId", "==", user.uid), orderBy("createdAt", "desc"))),
+    getDocs(query(collection(db, "loanContracts"), where("userId", "==", user.uid), orderBy("createdAt", "desc"))),
   ]);
 
   const contracts: any[] = [
     ...paSwipeSnap.docs.map((d) => ({ id: d.id, source: "mlf", ...(d.data() as any) })),
     ...creditCartSnap.docs.map((d) => ({ id: d.id, source: "creditcart", ...(d.data() as any) })),
+    ...loanSnap.docs.map((d) => ({ id: d.id, source: "loan", ...(d.data() as any) })),
   ].sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
 
   if (contracts.length === 0) {
@@ -110,11 +114,24 @@ export async function renderPaSwipeContractsPage(container: HTMLElement) {
     .map((c) => {
       const productName = c.source === "creditcart"
         ? (c.category === "grocery" ? "Grocery Credit" : "Department Store Credit")
+        : c.source === "loan"
+        ? `Coop Loan — ${formatMoney(c.amount)}`
         : (c.productSnapshot?.title || "Item");
       const image = c.productSnapshot?.imageUrl || "";
 
       const contractText = c.contractText || "(Contract text not available.)";
-      const canDecide = c.status === "awaiting_acceptance";
+      // 📄 Coop loans are already agreed to via the checkbox at request
+      // time (see agreementAcceptance), so there's no separate
+      // accept/decline step here the way there is for MLF/Credit Cart.
+      const canDecide = c.source !== "loan" && c.status === "awaiting_acceptance";
+
+      const metaLine = c.source === "loan"
+        ? `Term: <b>${c.termsMonths}</b> month(s) • Schedule: <b>${c.paymentSchedule || "—"}</b> • Total Payable: <b>${formatMoney(c.totalPayable)}</b>`
+        : `Term: <b>${c.termMonths}</b> months (${c.installmentCount} payments) • Downpayment: <b>${formatMoney(c.downpayment)}</b> • Semi-Monthly: <b>${formatMoney(c.installmentAmount)}</b>`;
+
+      const gracePeriodLine = c.source === "loan"
+        ? `Late fee: 3% (5% after 15 days)`
+        : `3-day grace period, then 0.1%/day late fee (capped at 10% of the overdue installment)`;
 
       return `
         <div class="contract-card" data-id="${c.id}" data-source="${c.source}">
@@ -123,12 +140,8 @@ export async function renderPaSwipeContractsPage(container: HTMLElement) {
               ${image ? `<img class="contract-img lightbox-img" src="${image}" alt="${productName}" />` : ""}
               <div>
                 <div class="contract-title">${productName}</div>
-                <div class="muted small">
-                  Term: <b>${c.termMonths}</b> months (${c.installmentCount} payments) • Downpayment: <b>${formatMoney(c.downpayment)}</b> • Semi-Monthly: <b>${formatMoney(c.installmentAmount)}</b>
-                </div>
-                <div class="muted small">
-                  3-day grace period, then 0.1%/day late fee (capped at 10% of the overdue installment)
-                </div>
+                <div class="muted small">${metaLine}</div>
+                <div class="muted small">${gracePeriodLine}</div>
                 <div class="status-badge status-${c.status}">Status: ${c.status}</div>
               </div>
             </div>

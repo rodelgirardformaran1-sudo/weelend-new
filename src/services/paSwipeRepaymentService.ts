@@ -8,6 +8,11 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { computeLateFee, daysPastDue, isRepossessionDue, GRACE_DAYS } from "../utils/paSwipeCalc";
+import {
+  computeSecondHalfAccrualDelta,
+  writeSecondHalfAccrual,
+  bumpEasyInstallmentInterestCollected,
+} from "./affiliateService";
 
 const INSTALLMENTS_COL = "paSwipeInstallments";
 
@@ -113,15 +118,93 @@ export async function collectPaSwipeInstallmentPayment(params: {
       collection(db, INSTALLMENTS_COL, installmentId, "schedule")
     );
 
+    // NOTE: allSchedSnap is a plain (non-transactional) read, so it won't
+    // reflect the tx.update above yet — override this schedule item's
+    // amountPaid/paid with the values we just computed, same pattern the
+    // original code used for the "paid" flag.
     const allPaidAfterThis = allSchedSnap.docs.every((d) => {
       if (d.id === scheduleId) return fullyPaid;
       return d.data().paid === true;
     });
 
+    const cumulativePaid = allSchedSnap.docs.reduce((sum, d) => {
+      const amt = d.id === scheduleId ? newAmountPaid : Number(d.data().amountPaid ?? 0);
+      return sum + amt;
+    }, 0);
+
     tx.update(installmentRef, {
       status: allPaidAfterThis ? "completed" : "active",
       lastPaymentAt: serverTimestamp(),
     });
+
+    // 🧾 Payment log — this product had no payment history recorded at
+    // all before now, so this is also what powers the "My Receipts" page.
+    const installment = installmentSnap.data() as any;
+
+    // ✅ Easy Installment financial summary — interest portion of this payment.
+    // Computed BEFORE the payment log write so the log itself can carry
+    // interestPortion too — that's what lets the year-end earnings report
+    // sum "interest actually collected in year X" instead of only ever
+    // seeing a lifetime total.
+    const interestAmountTotal = Number(installment.interestAmount || 0);
+    const remainingBalanceTotal = Number(installment.remainingBalance || 0);
+
+    const interestPortionThisPayment =
+      remainingBalanceTotal > 0
+        ? Math.round((installmentPaidNow * (interestAmountTotal / remainingBalanceTotal)) * 100) / 100
+        : 0;
+
+    const paSwipePayRef = doc(collection(db, "paSwipePayments"));
+    tx.set(paSwipePayRef, {
+      installmentId,
+      scheduleId,
+      userId: installment.userId,
+      userName: installment.userName || null,
+      productTitle: installment.productSnapshot?.title || "Item",
+      installmentPaid: installmentPaidNow,
+      lateFeePaid: lateFeePaidNow,
+      totalPaid: amountPaid,
+      interestPortion: interestPortionThisPayment,
+      fullyPaid,
+      createdAt: serverTimestamp(),
+    });
+
+    bumpEasyInstallmentInterestCollected(tx, interestPortionThisPayment);
+
+    // ✅ Affiliate second-half commission — pro-rata accrual, releases the
+    // remainder immediately if the buyer just settled everything early.
+    const affiliateId = installment.affiliateId as string | null;
+    const referralCommission = installment.referralCommission as {
+      secondHalfAmount: number;
+      secondHalfReleased: number;
+    } | null;
+
+    if (affiliateId && referralCommission) {
+      const secondHalfReleasedSoFar = Number(referralCommission.secondHalfReleased || 0);
+
+      const delta = computeSecondHalfAccrualDelta({
+        secondHalfAmount: Number(referralCommission.secondHalfAmount || 0),
+        secondHalfReleasedSoFar,
+        cumulativePaid,
+        remainingBalance: remainingBalanceTotal,
+      });
+
+      if (delta > 0) {
+        const newSecondHalfReleased = secondHalfReleasedSoFar + delta;
+        const isFinal =
+          newSecondHalfReleased >= Number(referralCommission.secondHalfAmount || 0) - 0.5;
+
+        writeSecondHalfAccrual(tx, {
+          affiliateId,
+          affiliateName: installment.affiliateName || affiliateId,
+          installmentId,
+          scheduleId,
+          amount: delta,
+          isFinal,
+          productTitle: installment.productSnapshot?.title || "Item",
+        });
+      }
+    }
   });
 }
 

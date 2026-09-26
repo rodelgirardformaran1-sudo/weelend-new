@@ -5,6 +5,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WeeLend App</title>
+
+  <!-- 📱 PWA / Add-to-Home-Screen support -->
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <meta name="theme-color" content="#4B0082" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="WeeLend" />
+
   <!-- build-refresh -->
 </head>
 
@@ -71,6 +81,12 @@
     <button id="sidebar-contracts-btn" class="sidebar-link">
       🧾 Contracts
     </button>
+    <button id="sidebar-agreements-btn" class="sidebar-link">
+      📜 Agreements
+    </button>
+    <button id="sidebar-receipts-btn" class="sidebar-link">
+      🧾 My Receipts
+    </button>
   </div>
 </aside>
 
@@ -115,21 +131,249 @@
         <img src="/weelend-logo.png" alt="Weelend Logo" />
       </div>
       <h2>Create Account</h2>
-      <input id="signup-fullname" placeholder="Full Name" />
-      <input id="signup-email" placeholder="Email" />
-      <input id="signup-password" type="password" placeholder="Password" />
-      <select id="signup-request-role">
-        <option value="member">Member</option>
-        <option value="borrower">Borrower</option>
-      </select>
-      <button id="signup-btn">Sign Up</button>
-      <p id="signup-message"></p>
+
+      <form id="signup-form" class="signup-form" novalidate>
+
+        <!-- 👤 Personal Info -->
+        <fieldset class="signup-fieldset">
+          <legend>Personal Information</legend>
+
+          <div class="signup-row signup-row-3">
+            <input id="signup-firstname" placeholder="First Name" autocomplete="given-name" required />
+            <input id="signup-middlename" placeholder="Middle Name (optional)" autocomplete="additional-name" />
+            <input id="signup-lastname" placeholder="Last Name" autocomplete="family-name" required />
+          </div>
+
+          <div class="signup-row signup-row-2">
+            <input id="signup-email" type="email" placeholder="Email" autocomplete="email" required />
+            <input id="signup-phone" type="tel" placeholder="Mobile Number (e.g. 09XXXXXXXXX)" autocomplete="tel" required />
+          </div>
+
+          <div class="signup-row signup-row-1">
+            <div class="password-field">
+              <input id="signup-password" type="password" placeholder="Password" autocomplete="new-password" required />
+              <button type="button" id="toggle-signup-password" class="toggle-password-btn" aria-label="Show password">👁</button>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- 🏠 Address -->
+        <fieldset class="signup-fieldset">
+          <legend>Home Address</legend>
+
+          <div class="signup-row signup-row-1">
+            <input id="signup-address-street" placeholder="House/Unit No., Street, Purok/Sitio" autocomplete="address-line1" required />
+          </div>
+
+          <div class="signup-row signup-row-2">
+            <input id="signup-address-barangay" placeholder="Barangay" autocomplete="address-level3" required />
+            <input id="signup-address-city" placeholder="City / Municipality" autocomplete="address-level2" required />
+          </div>
+
+          <div class="signup-row signup-row-2">
+            <input id="signup-address-province" placeholder="Province" autocomplete="address-level1" required />
+            <input id="signup-address-zip" placeholder="ZIP Code" autocomplete="postal-code" inputmode="numeric" required />
+          </div>
+        </fieldset>
+
+        <!-- 🚨 Emergency Contact -->
+        <fieldset class="signup-fieldset">
+          <legend>Emergency Contact</legend>
+
+          <div class="signup-row signup-row-2">
+            <input id="signup-emergency-name" placeholder="Contact Full Name" required />
+            <input id="signup-emergency-relationship" placeholder="Relationship (e.g. Spouse, Parent)" required />
+          </div>
+
+          <div class="signup-row signup-row-1">
+            <input id="signup-emergency-phone" type="tel" placeholder="Contact Mobile Number" inputmode="tel" required />
+          </div>
+        </fieldset>
+
+        <!-- 🎭 Role Picker -->
+        <fieldset class="signup-fieldset">
+          <legend>I'm signing up as a</legend>
+
+          <div class="role-picker" id="signup-role-picker" role="radiogroup" aria-label="Account type">
+            <button
+              type="button"
+              class="role-card"
+              data-role="member"
+              role="radio"
+              aria-checked="false"
+            >
+              <span class="role-card-icon" aria-hidden="true">🤝</span>
+              <span class="role-card-title">Member</span>
+              <span class="role-card-desc">
+                Join the co-op, save shares, and access member benefits &amp; the shop.
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="role-card"
+              data-role="borrower"
+              role="radio"
+              aria-checked="false"
+            >
+              <span class="role-card-icon" aria-hidden="true">💳</span>
+              <span class="role-card-title">Borrower</span>
+              <span class="role-card-desc">
+                Apply for loans and installment plans through the co-op.
+              </span>
+            </button>
+          </div>
+
+          <!-- Actual value submitted; kept in sync by main.ts -->
+          <input type="hidden" id="signup-request-role" value="" />
+        </fieldset>
+
+        <button id="signup-btn" type="submit">Sign Up</button>
+        <p id="signup-message"></p>
+      </form>
 
       <p>
         Already have an account?
         <a href="#" id="go-login">Login</a>
       </p>
     </section>
+
+    <style>
+      .signup-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        max-width: 560px;
+        margin: 0 auto;
+      }
+
+      .signup-fieldset {
+        border: 1px solid rgba(128, 128, 128, 0.35);
+        border-radius: 12px;
+        padding: 14px 16px 18px;
+        margin: 0;
+      }
+
+      .signup-fieldset legend {
+        padding: 0 6px;
+        font-weight: 600;
+        opacity: 0.85;
+      }
+
+      .signup-row {
+        display: grid;
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      .signup-row:first-of-type {
+        margin-top: 0;
+      }
+
+      .signup-row-1 {
+        grid-template-columns: 1fr;
+      }
+
+      .signup-row-2 {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .signup-row-3 {
+        grid-template-columns: 1fr 1fr 1fr;
+      }
+
+      @media (max-width: 560px) {
+        .signup-row-2,
+        .signup-row-3 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .signup-fieldset input {
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .password-field {
+        position: relative;
+      }
+
+      .password-field input {
+        padding-right: 40px;
+      }
+
+      .toggle-password-btn {
+        position: absolute;
+        right: 6px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 1rem;
+        opacity: 0.7;
+      }
+
+      .role-picker {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+
+      @media (max-width: 480px) {
+        .role-picker {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .role-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 8px;
+        padding: 20px 16px;
+        border-radius: 16px;
+        border: 2px solid rgba(128, 128, 128, 0.35);
+        background: rgba(128, 128, 128, 0.06);
+        cursor: pointer;
+        transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+        font: inherit;
+        color: inherit;
+      }
+
+      .role-card:hover {
+        transform: translateY(-2px);
+      }
+
+      .role-card.selected {
+        border-color: #6d4aff;
+        background: rgba(109, 74, 255, 0.12);
+        box-shadow: 0 0 0 1px #6d4aff inset;
+      }
+
+      .role-card-icon {
+        font-size: 2rem;
+      }
+
+      .role-card-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+      }
+
+      .role-card-desc {
+        font-size: 0.85rem;
+        opacity: 0.8;
+      }
+
+      .profile-subsection-title {
+        margin: 20px 0 4px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(128, 128, 128, 0.25);
+        font-size: 0.95rem;
+        opacity: 0.85;
+      }
+    </style>
 
     <!-- PENDING PAGE -->
     <section id="page-pending" class="page">
@@ -140,6 +384,14 @@
       <p>Your account is under review by an administrator.</p>
     </section>
 
+    <!-- SECURITY GUARANTOR — landing page for a normal (non-invite-link) login -->
+    <section id="page-guarantor-home" class="page">
+      <div class="auth-logo">
+        <img src="/weelend-logo.png" alt="Weelend Logo" />
+      </div>
+      <div id="guarantor-home-root"></div>
+    </section>
+
     <!-- USER DASHBOARD (Member) -->
     <section id="page-dashboard-member" class="page dashboard">
       <div class="dashboard-scroll">
@@ -147,99 +399,163 @@
       <div class="auth-logo">
         <img src="/weelend-logo.png" alt="Weelend Logo" />
       </div>
-      <h2 class="member-dashboard-title">Welcome, <span id="member-name-display">Member</span>!</h2>
 
-      <div class="member-stats-container">
-        <!-- Available Coop Funds -->
-        <div class="card stat-card">
-          <h3>Co-op Funds Available</h3>
-          <p class="amount" id="member-available-funds">₱0</p>
-          <span class="label">Total funds available in the cooperative.</span>
+      <div class="dp-page">
+
+        <div class="dp-header">
+          <div>
+            <h2 class="member-dashboard-title" style="margin:0;">Welcome, <span id="member-name-display">Member</span>!</h2>
+            <span class="dp-subtitle">Member Dashboard</span>
+          </div>
+          <span class="dp-live-pill"><span class="dp-live-dot"></span> Live data</span>
         </div>
 
-        <!-- Your Share Balance -->
-        <div class="card stat-card">
-          <h3>Your Share Balance</h3>
-          <p class="amount" id="member-share-balance">₱0</p>
-          <span class="label">Your total contributions to the cooperative.</span>
+        <!-- Hero: Share Balance + Loan Limit -->
+        <div class="dp-grid-2">
+          <div class="dp-hero">
+            <span class="dp-eyebrow">YOUR SHARE BALANCE</span>
+            <p class="dp-amount" id="member-share-balance">₱0</p>
+            <span class="dp-caption">Your total contributions to the cooperative</span>
+          </div>
+          <div class="dp-stat">
+            <span class="dp-eyebrow">YOUR LOAN LIMIT</span>
+            <p class="dp-amount" id="member-loan-limit">₱0</p>
+            <span class="dp-caption">Maximum amount you can borrow based on your shares</span>
+          </div>
         </div>
 
-        <!-- Your Loan Limit -->
-        <div class="card stat-card">
-          <h3>Your Loan Limit</h3>
-          <p class="amount" id="member-loan-limit">₱0</p>
-          <span class="label">Maximum amount you can borrow based on your shares.</span>
+        <!-- Your Standing: Credit Score / Commitment / Current Loan / Guarantor -->
+        <div class="dp-panel">
+          <h3 class="dp-panel-title">Your Standing</h3>
+
+          <div class="dp-row">
+            <div class="dp-row-main">
+              <span class="dp-icon dp-icon-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg></span>
+              <div class="dp-row-text">
+                <span class="dp-row-label">Credit Score</span>
+                <span class="dp-row-sub">Starts at 100 · lowered by late payments, raised by paying on time</span>
+              </div>
+            </div>
+            <span class="dp-pill" id="member-credit-score">100</span>
+          </div>
+
+          <div class="dp-row">
+            <div class="dp-row-main">
+              <span class="dp-icon dp-icon-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2Z"/></svg></span>
+              <div class="dp-row-text">
+                <span class="dp-row-label">Monthly Share Commitment</span>
+                <span class="dp-row-sub">Your committed share amount per month</span>
+              </div>
+            </div>
+            <span class="dp-row-value" id="member-current-month-share">₱0</span>
+          </div>
+
+          <div class="dp-row">
+            <div class="dp-row-main">
+              <span class="dp-icon dp-icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+              <div class="dp-row-text">
+                <span class="dp-row-label">Current Loan (as Member)</span>
+                <span class="dp-row-sub">Due: <span id="member-current-loan-due-date">N/A</span> · Status: <span id="member-current-loan-status">No active loan</span></span>
+              </div>
+            </div>
+            <span class="dp-row-value" id="member-current-loan-amount">₱0</span>
+          </div>
+
+          <div class="dp-row" style="border-bottom:none;">
+            <div class="dp-row-main">
+              <span class="dp-icon dp-icon-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21l8.84-8.61a5.5 5.5 0 0 0 0-7.78Z"/></svg></span>
+              <div class="dp-row-text">
+                <span class="dp-row-label">Guarantor Status</span>
+                <span class="dp-row-sub" id="member-guarantor-details">You are not currently guaranteeing any loans.</span>
+              </div>
+            </div>
+            <span class="dp-pill" id="member-guarantor-status">None</span>
+          </div>
         </div>
 
-        <!-- PHASE 5 ADDITION: Guarantor Card for Member Dashboard -->
-        <div class="card stat-card">
-          <h3>Guarantor Status</h3>
-          <p class="amount" id="member-guarantor-status">None</p>
-          <span class="label" id="member-guarantor-details">You are not currently guaranteeing any loans.</span>
+        <!-- Running Payout Estimate -->
+        <div class="dp-panel">
+          <h3 class="dp-panel-title">Running Payout Estimate<span class="dp-panel-hint">Based on current earnings</span></h3>
+
+          <div class="dp-row">
+            <span class="dp-row-label">Your Estimated Pool Share</span>
+            <span class="dp-row-value" id="member-pool-share">₱0</span>
+          </div>
+          <div class="dp-row">
+            <span class="dp-row-label">Capital Pool Share</span>
+            <span class="dp-row-value" id="member-payout-capital">₱0</span>
+          </div>
+          <div class="dp-row" style="border-bottom:none;">
+            <span class="dp-row-label">Effort Pool Share</span>
+            <span class="dp-row-value" id="member-payout-effort">₱0</span>
+          </div>
+
+          <div class="dp-row" style="border-top:1px solid #f2eef6;padding-top:14px;border-bottom:none;">
+            <span class="dp-row-label" style="font-weight:700;color:#2a1240;">Total Estimated Payout</span>
+            <span class="dp-row-value dp-row-value-lg" id="member-total-payout">₱0</span>
+          </div>
+          <button id="member-view-payout-history-btn" type="button" style="margin-top:10px;background:none;border:none;color:#4B0082;text-decoration:underline;cursor:pointer;padding:0;font-size:13px;">🎉 View Past Payouts</button>
+          <div id="member-payout-history-list" style="display:none;margin-top:10px;"></div>
         </div>
 
-        <!-- PHASE 5 ADDITION: Existing Loan Card for Member Dashboard -->
-        <div class="card stat-card">
-          <h3>Your Current Loan (as Member)</h3>
-          <p class="amount" id="member-current-loan-amount">₱0</p>
-          <span class="label">Due Date: <span id="member-current-loan-due-date">N/A</span></span>
-          <span class="label">Status: <span id="member-current-loan-status">No active loan</span></span>
+        <!-- Cooperative Funds -->
+        <div class="dp-panel">
+          <h3 class="dp-panel-title">Cooperative Funds</h3>
+          <div class="dp-cols" style="--dp-cols:3;">
+            <div class="dp-col">
+              <span class="dp-col-label">Available</span>
+              <span class="dp-col-value" id="member-available-funds">₱0</span>
+              <span class="dp-col-caption">Total funds available in the cooperative</span>
+            </div>
+            <div class="dp-col">
+              <span class="dp-col-label">Capital Pool</span>
+              <span class="dp-col-value" id="member-capital-pool">₱0</span>
+              <span class="dp-col-caption">Total funds for reinvestment</span>
+            </div>
+            <div class="dp-col">
+              <span class="dp-col-label">Trust Fund</span>
+              <span class="dp-col-value" id="member-trust-fund">₱0</span>
+              <span class="dp-col-caption">Risk protection reserve</span>
+            </div>
+          </div>
+          <button id="member-view-trust-fund-expenses-btn" type="button" class="link-btn" style="margin-top:10px;background:none;border:none;color:#4B0082;text-decoration:underline;cursor:pointer;padding:0;font-size:13px;">🧾 View Trust Fund Expenses</button>
+          <div id="member-trust-fund-expenses-list" style="display:none;margin-top:10px;"></div>
         </div>
-        
-        <!-- PHASE 5 ADDITION: Member Monthly Share Commitment -->
-        <div class="card stat-card">
-          <h3>Your Monthly Share Commitment</h3>
-          <p class="amount" id="member-current-month-share">₱0</p> <!-- Changed from ₱3000 to ₱0 -->
-          <span class="label">Your committed share amount per month.</span>
+
+        <div id="member-section-content" class="dp-cta-stack">
+          <!-- PHASE 5 ADDITION: Request Loan Button for Member Dashboard -->
+          <button id="member-request-loan-btn" class="request-loan-btn dp-cta-primary">Request New Loan</button>
+
+          <!-- 🙋 Refer someone who doesn't have an account yet -->
+          <button id="member-refer-loan-btn" class="request-loan-btn dp-cta-secondary">🙋 Refer Someone for a Loan</button>
+
+          <!-- 🤝 MLF Easy Installment Affiliate Program -->
+          <button id="member-affiliate-btn" class="request-loan-btn dp-cta-secondary">🤝 Affiliate Program</button>
         </div>
 
-        <div class="card stat-card">
-  <h3>Cooperative Capital Pool</h3>
-  <p class="amount" id="member-capital-pool">₱0</p>
-  <span class="label">Total funds for reinvestment.</span>
-</div>
+        <div id="member-refer-loan-panel" style="display:none;max-width:420px;margin:10px 0;padding:14px 16px;border:1px solid #ddd;border-radius:12px;background:#fafafa;">
+          <p style="margin:0 0 10px 0;font-size:13px;color:#555;">
+            For someone you know who doesn't have a WeeLend account yet — this holds their place in the queue. You'll be recorded as their guarantor. If the amount is over ₱10,000, it'll still be queued, but it can't be approved until they have an account and a security guarantor is added.
+          </p>
+          <label>Name or nickname:</label>
+          <input id="refer-loan-name" type="text" style="width:100%;margin-bottom:8px;" />
 
-<div class="card stat-card">
-  <h3>Your Estimated Pool Share</h3>
-  <p class="amount" id="member-pool-share">₱0</p>
-  <span class="label">Based on your share contributions.</span>
-</div>
+          <label>Loan Amount (₱):</label>
+          <input id="refer-loan-amount" type="number" min="500" step="1" style="width:100%;margin-bottom:8px;" />
 
-<div class="card stat-card">
-  <h3>Trust Fund</h3>
-  <p class="amount" id="member-trust-fund">₱0</p>
-  <span class="label">Risk protection reserve.</span>
-</div>
+          <label>Terms (months, 1–10):</label>
+          <input id="refer-loan-terms" type="number" min="1" max="10" value="1" style="width:100%;margin-bottom:8px;" />
 
-<div class="card stat-card">
-  <h3>Running Payout Estimate</h3>
+          <label>Purpose:</label>
+          <input id="refer-loan-purpose" type="text" style="width:100%;margin-bottom:10px;" />
 
-  <p>Capital Pool Share:
-    <strong id="member-payout-capital">₱0</strong>
-  </p>
+          <button id="refer-loan-submit-btn" type="button" class="request-loan-btn">Submit Referral</button>
+          <p id="refer-loan-message" style="margin-top:8px;font-size:13px;"></p>
+        </div>
 
-  <p>Effort Pool Share:
-    <strong id="member-payout-effort">₱0</strong>
-  </p>
-
-  <hr/>
-
-  <p>Total Estimated Payout:
-    <strong id="member-total-payout">₱0</strong>
-  </p>
-
-  <small>Based on current cooperative earnings.</small>
-</div>
+        <p id="member-message"></p>
 
       </div>
-
-      <div id="member-section-content">
-
-        <!-- PHASE 5 ADDITION: Request Loan Button for Member Dashboard -->
-        <button id="member-request-loan-btn" class="request-loan-btn">Request New Loan</button>
-      </div>
-
-      <p id="member-message"></p>
 
       </div>
 
@@ -280,13 +596,43 @@
     <h2>WeeLend Cooperative Information</h2>
 
     <!-- ========================= -->
-    <!-- MEMBERSHIP & ROLES -->
+    <!-- MEMBERSHIP & RESPONSIBILITY (LIABILITY) -->
     <!-- ========================= -->
     <details open>
+      <summary>⚖️ Membership & Responsibility</summary>
+      <p>
+        By joining WeeLend, you agree to meet your share commitments and repay
+        any loan, MLF Easy Installment, or Marimar's Credit Cart purchase in
+        full, on schedule.
+      </p>
+      <p>
+        Philippine law does not imprison anyone for failing to pay a debt
+        (1987 Constitution, Art. III, Sec. 20) — this is a civil, not a
+        criminal, matter. However, agreeing to become a WeeLend member or
+        borrower means you accept real consequences for not honoring that
+        agreement:
+      </p>
+      <ul>
+        <li>Your outstanding balance remains a debt owed to the cooperative and its members — it does not disappear.</li>
+        <li>If you leave the cooperative with an unpaid loan, your share contributions are applied against that balance first; anything beyond that stays on record as a receivable owed by you.</li>
+        <li>Your credit limit, future loan eligibility, and dividend standing are all directly affected by your payment history.</li>
+        <li>The cooperative may pursue any lawful civil remedy available to recover what's owed.</li>
+      </ul>
+      <p style="opacity:.75;font-size:13px;">
+        This section is a plain-language summary, not a substitute for a
+        formal member agreement reviewed by legal counsel.
+      </p>
+    </details>
+
+    <!-- ========================= -->
+    <!-- MEMBERSHIP & ROLES -->
+    <!-- ========================= -->
+    <details>
       <summary>👥 Membership & User Roles</summary>
-      <p><strong>Admin</strong> – First registered user. Full control over approvals, loans, fees, and profiles.</p>
-      <p><strong>Member</strong> – Approved by Admin. Provides shares, may act as guarantor, and monitors borrowers.</p>
-      <p><strong>Borrower</strong> – Approved by Admin. Can only view and manage personal loan information.</p>
+      <p><strong>Admin</strong> – Full control over approvals, loans, fees, and profiles.</p>
+      <p><strong>Member</strong> – Approved by Admin. Contributes monthly shares, may act as a guarantor, and shares in the cooperative's dividends.</p>
+      <p><strong>Borrower</strong> – Approved by Admin. Can request loans and use MLF Easy Installment / Marimar's Credit Cart / Pa-benta, but does not contribute shares or receive dividends.</p>
+      <p><strong>Security Guarantor</strong> – A separate, lightweight account for someone named as a required backup contact on a loan or purchase over ₱10,000. Not a coop member — just verifies their identity so they're a reachable, real person on file.</p>
     </details>
 
     <!-- ========================= -->
@@ -296,11 +642,21 @@
       <summary>💰 Capital Contribution (Shares)</summary>
       <ul>
         <li>Share value: <strong>₱1,000 per share</strong></li>
-        <li>New Member limit: <strong>1 share (₱1,000)</strong></li>
-        <li>Returning Member limit: <strong>2 shares (₱2,000)</strong></li>
-        <li>Admin limit: <strong>5 shares (₱5,000)</strong></li>
-        <li>Shares must be paid monthly to remain in good standing.</li>
-        <li>Shares will increase (₱1,000) for the next fiscal year</li>
+        <li>New members start at <strong>₱1,000/month</strong>; Admin may adjust a member's monthly commitment afterward.</li>
+        <li>Shares must be paid monthly to remain in good standing — your Paid Months and Total Shares are tracked on your dashboard.</li>
+        <li>📅 Planned: all active members' monthly share commitment will increase by ₱1,000 starting next fiscal year (not yet in effect).</li>
+      </ul>
+    </details>
+
+    <!-- ========================= -->
+    <!-- VERIFICATION -->
+    <!-- ========================= -->
+    <details>
+      <summary>🪪 Identity Verification</summary>
+      <ul>
+        <li>A one-time selfie + selfie-with-ID + government ID upload, submitted from Edit Profile.</li>
+        <li>Required — and must be admin-approved — before you can submit a coop loan, MLF Easy Installment, Marimar's Credit Cart, or Pa-benta request.</li>
+        <li>Your Emergency Contact info is required as well; both are reused across every request you make, so you only complete them once.</li>
       </ul>
     </details>
 
@@ -308,14 +664,14 @@
     <!-- LOAN TERMS -->
     <!-- ========================= -->
     <details>
-      <summary>📄 Loan Terms & Conditions</summary>
+      <summary>📄 Loan, Easy Installment & Credit Cart Terms</summary>
       <ul>
-        <li>Loan amount: ₱1,000 – ₱100,000</li>
-        <li>Interest: 10% per month</li>
-        <li>Payment: Monthly or Semi-Monthly (every 15 days)</li>
-        <li>Late fee: 3% immediately, escalates to 5% after 15 days</li>
-        <li>Only Admin may waive penalties</li>
-        <li>All payments generate digital receipts</li>
+        <li>Coop loan interest: <strong>10% per month</strong></li>
+        <li>MLF Easy Installment & Marimar's Credit Cart: 10% flat interest over the term, no downpayment needed for Credit Cart</li>
+        <li>Payment schedule: Monthly or Semi-Monthly (every 15 days)</li>
+        <li>Late fee: 3% immediately after the due date, escalating to 5% after 15 days unpaid</li>
+        <li>Only Admin may waive a late fee</li>
+        <li>A <strong>Security Guarantor</strong> (verified third-party contact) is required for any request over ₱10,000 — you cannot name yourself as your own Security Guarantor</li>
       </ul>
     </details>
 
@@ -323,13 +679,11 @@
     <!-- GUARANTOR & EFFORT -->
     <!-- ========================= -->
     <details>
-      <summary>🤝 Guarantee & Effort System</summary>
+      <summary>🤝 Guarantor & Effort System</summary>
+      <p>WeeLend has two separate guarantor mechanisms — don't confuse them:</p>
       <ul>
-        <li>All loans must have a guarantor</li>
-        <li>Members/Admins may self-guarantee</li>
-        <li>Guaranteeing borrowers earns <strong>Effort</strong></li>
-        <li>Effort affects year-end profit payout</li>
-        <li>Guarantors must monitor borrower payments</li>
+        <li><strong>Effort-Pool Guarantor</strong> (coop loans) – you may name yourself; whoever is named earns Effort credit toward that guarantor's own share of the year-end payout.</li>
+        <li><strong>Security Guarantor</strong> (any request over ₱10,000) – must be someone else, a real reachable contact who completes their own identity verification. This protects the cooperative if a borrower can't be reached.</li>
       </ul>
     </details>
 
@@ -337,12 +691,12 @@
     <!-- PAYOUT -->
     <!-- ========================= -->
     <details>
-      <summary>🏁 Fiscal Year & Payout Distribution</summary>
+      <summary>🏁 Fiscal Year & Dividend Distribution</summary>
       <ul>
-        <li>One-year fiscal cycle</li>
-        <li>Initial share capital returned in full</li>
-        <li>70% → Capital Pool (shared by shareholders)</li>
-        <li>30% → Effort Pool (based on guaranteed borrowers)</li>
+        <li>Every payment collected splits: 10% to the Trust Fund, then 70% of what's left to the Capital Pool, 30% to the Effort Pool. Late fees go 100% to the Trust Fund.</li>
+        <li><strong>Capital Pool</strong> is shared among active members in proportion to their monthly share commitment.</li>
+        <li><strong>Effort Pool</strong> is shared among active members in proportion to their guaranteed (effort-pool) loan volume.</li>
+        <li>If a member leaves the cooperative with an unpaid loan balance, that balance is tracked as an uncollected receivable and excluded from dividend calculations until it's actually collected — so payouts always reflect real cash on hand, not money still owed.</li>
       </ul>
     </details>
 
@@ -352,9 +706,8 @@
     <details>
       <summary>🛠 Admin Operational Guidelines</summary>
       <ul>
-        <li>Monitor cash-on-hand daily</li>
-        <li>Approve all registrations</li>
-        <li>Reset button used only at fiscal year end</li>
+        <li>Approve all registrations and identity verifications</li>
+        <li>Monitor available funds and collections regularly</li>
         <li>Digital receipts serve as official records</li>
       </ul>
     </details>
@@ -377,7 +730,7 @@
       <summary>🎯 Mission</summary>
       <ul>
         <li>Empower members through accessible credit</li>
-        <li>Promote accountability via guarantor system</li>
+        <li>Promote accountability via the guarantor system</li>
         <li>Ensure fair and sustainable profit sharing</li>
         <li>Educate users for financial independence</li>
       </ul>
@@ -401,11 +754,11 @@
     <details>
       <summary>📜 By-Laws Summary</summary>
       <ul>
-        <li>Membership approved by Admin</li>
-        <li>Shares fund the lending pool</li>
-        <li>All loans require guarantors</li>
-        <li>Profit distributed yearly</li>
-        <li>Admin may amend policies</li>
+        <li>Membership and Identity Verification are approved by Admin</li>
+        <li>Monthly shares fund the cooperative's lending pool</li>
+        <li>Requests over ₱10,000 require a verified Security Guarantor</li>
+        <li>Dividends are distributed from the Capital and Effort Pools; departed members with unpaid balances are excluded until collected</li>
+        <li>Admin may amend policies as the cooperative grows</li>
       </ul>
     </details>
 
@@ -461,12 +814,76 @@
       <input id="member-profile-contact" type="text" placeholder="Optional" />
     </div>
 
+    <!-- 🏠 Home Address (editable) -->
+    <h4 class="profile-subsection-title">🏠 Home Address</h4>
+
     <div class="modal-form-group">
-      <label>Address</label>
-      <textarea id="member-profile-address" placeholder="Enter address"></textarea>
+      <label>House/Unit No., Street, Purok/Sitio</label>
+      <input id="member-profile-home-street" type="text" placeholder="Street" />
     </div>
 
-    
+    <div class="modal-form-group">
+      <label>Barangay</label>
+      <input id="member-profile-home-barangay" type="text" placeholder="Barangay" />
+    </div>
+
+    <div class="modal-form-group">
+      <label>City / Municipality</label>
+      <input id="member-profile-home-city" type="text" placeholder="City / Municipality" />
+    </div>
+
+    <div class="modal-form-group">
+      <label>Province</label>
+      <input id="member-profile-home-province" type="text" placeholder="Province" />
+    </div>
+
+    <div class="modal-form-group">
+      <label>ZIP Code</label>
+      <input id="member-profile-home-zip" type="text" placeholder="ZIP Code" inputmode="numeric" />
+    </div>
+
+    <!-- 🚨 Emergency Contact (editable) -->
+    <h4 class="profile-subsection-title">🚨 Emergency Contact</h4>
+
+    <div class="modal-form-group">
+      <label>Contact Full Name</label>
+      <input id="member-profile-emergency-name" type="text" placeholder="Contact Full Name" />
+    </div>
+
+    <div class="modal-form-group">
+      <label>Relationship</label>
+      <input id="member-profile-emergency-relationship" type="text" placeholder="e.g. Spouse, Parent" />
+    </div>
+
+    <div class="modal-form-group">
+      <label>Contact Mobile Number</label>
+      <input id="member-profile-emergency-phone" type="tel" placeholder="Contact Mobile Number" />
+    </div>
+
+    <!-- 🪪 Identity Verification (one-time, reused across loans / Easy Installment / Pa-benta) -->
+    <h4 class="profile-subsection-title">🪪 Identity Verification</h4>
+    <p id="member-verification-status" class="verification-status-badge"></p>
+    <p id="member-verification-note" class="verification-note"></p>
+
+    <div id="member-verification-form" class="verification-thumbs">
+      <div class="verification-thumb-slot">
+        <img id="member-verify-selfie-thumb" class="verification-thumb" style="display:none;" />
+        <button type="button" id="member-verify-selfie-btn" class="verify-capture-btn">📸 Take Selfie</button>
+      </div>
+      <div class="verification-thumb-slot">
+        <img id="member-verify-selfie-id-thumb" class="verification-thumb" style="display:none;" />
+        <button type="button" id="member-verify-selfie-id-btn" class="verify-capture-btn">🪪 Selfie Holding ID</button>
+      </div>
+      <div class="verification-thumb-slot">
+        <img id="member-verify-govid-thumb" class="verification-thumb" style="display:none;" />
+        <label for="member-verify-govid-input" class="verify-capture-btn">🗂 Upload Gov ID</label>
+        <input type="file" id="member-verify-govid-input" accept="image/*,.pdf" hidden />
+      </div>
+    </div>
+
+    <button type="button" id="member-verify-submit-btn" class="verify-submit-btn">Submit for Verification</button>
+    <p id="member-verify-message"></p>
+
     <button id="member-profile-save-btn">Save Changes</button>
 
     <p id="member-profile-message"></p>
@@ -510,14 +927,108 @@
 
     <div id="loan-agreement-summary" class="agreement-box"></div>
 
+    <div class="agreement-liability-box" style="margin-top:12px; padding:12px; border-radius:10px; background:#fff7f0; border:1px solid #f0c7a0; max-height:320px; overflow-y:auto;">
+      <h4 style="margin:0 0 8px 0;">📜 Cooperative Loan Agreement — Terms and Conditions</h4>
+      <p style="margin:0 0 8px 0;">
+        This is a binding agreement between you (<strong>"the Borrower"</strong>) and
+        <strong>WEE LENDING COOPERATIVE</strong> (<strong>"the Cooperative"</strong>). By checking
+        "I Agree" and submitting this loan request, you are entering into this
+        agreement, in accordance with Republic Act No. 9520 (the Philippine
+        Cooperative Code of 2008) and the Cooperative's by-laws.
+      </p>
+
+      <h5 style="margin:10px 0 4px 0;">1. Loan and Interest</h5>
+      <p style="margin:0 0 8px 0;">
+        You are requesting the loan amount, term, and payment schedule shown
+        above. Interest accrues at 10% per month on the outstanding
+        principal, on a simple (non-compounding) basis, for the full agreed
+        term.
+      </p>
+
+      <h5 style="margin:10px 0 4px 0;">2. Repayment</h5>
+      <p style="margin:0 0 8px 0;">
+        You agree to repay the loan in full — principal plus interest —
+        according to the payment schedule shown above, without need of
+        further demand from the Cooperative.
+      </p>
+
+      <h5 style="margin:10px 0 4px 0;">3. Late Payment</h5>
+      <p style="margin:0 0 8px 0;">
+        Any installment not paid on its due date is subject to a late fee of
+        3% of the overdue amount. If an installment remains unpaid for more
+        than 15 days past its due date, the late fee increases to 5%.
+      </p>
+
+      <h5 style="margin:10px 0 4px 0;">4. If You Do Not Pay</h5>
+      <p style="margin:0 0 8px 0;">
+        Philippine law does not imprison anyone for failing to pay a debt
+        (1987 Constitution, Art. III, Sec. 20) — this is a civil, not a
+        criminal, matter. Still, non-payment has real, binding consequences:
+      </p>
+      <ul style="margin:0 0 8px 0; padding-left:20px;">
+        <li>Your outstanding balance remains a debt owed to the Cooperative and its members. It does not disappear, is not forgiven, and continues to accrue as described above until paid.</li>
+        <li>Your share capital contributions, if any, may be applied against any unpaid balance before any other use.</li>
+        <li>Missed or incomplete payments directly and immediately reduce your future credit limit and loan eligibility with the Cooperative.</li>
+        <li>If you leave the Cooperative with an unpaid balance, that balance remains collectible and is not extinguished by your departure.</li>
+        <li>The Cooperative may pursue any lawful civil remedy available to it to recover what is owed, including but not limited to formal demand, offset against your share capital, referral to a collection process, or civil action.</li>
+      </ul>
+
+      <h5 style="margin:10px 0 4px 0;">5. Your Consent and Data</h5>
+      <p style="margin:0 0 8px 0;">
+        By submitting this request, you consent to the Cooperative's
+        collection, verification, and use of the personal and
+        identification information you have provided, for purposes of loan
+        processing, credit evaluation, and enforcement of this agreement, in
+        accordance with the Data Privacy Act of 2012 (Republic Act No.
+        10173).
+      </p>
+
+      <h5 style="margin:10px 0 4px 0;">6. How You Agree</h5>
+      <p style="margin:0 0 8px 0;">
+        Your acceptance is given electronically, by checking the box below
+        and submitting this request. Under the Electronic Commerce Act of
+        2000 (Republic Act No. 8792), this electronic acceptance has the
+        same legal effect, validity, and enforceability as a signature on
+        paper. The exact terms shown to you at the moment of acceptance are
+        recorded and kept on file as proof of this agreement.
+      </p>
+
+      <h5 style="margin:10px 0 4px 0;">7. Severability</h5>
+      <p style="margin:0 0 8px 0;">
+        If any provision of this agreement is found invalid or
+        unenforceable, the rest of the agreement remains in full force and
+        effect.
+      </p>
+
+      <h5 style="margin:10px 0 4px 0;">8. Governing Law</h5>
+      <p style="margin:0 0 8px 0;">
+        This agreement is governed by the laws of the Republic of the
+        Philippines, including the Philippine Cooperative Code of 2008 (RA
+        9520) and the Civil Code of the Philippines, and by the
+        Cooperative's by-laws and duly approved policies.
+      </p>
+
+      <p style="margin:0; opacity:.7; font-size:12px;">
+        This is a plain-language statement of your rights and obligations,
+        not a substitute for a formal contract reviewed by legal counsel. A
+        separate, fully detailed contract document is generated and made
+        available to you once your loan is approved.
+      </p>
+    </div>
+
+    <label style="display:flex; gap:8px; align-items:flex-start; margin-top:12px; cursor:pointer;">
+      <input type="checkbox" id="loan-agreement-checkbox" style="margin-top:3px;" />
+      <span>I have read and understood the terms and responsibility above, and I agree to them.</span>
+    </label>
+
     <p class="agreement-note">
-      By clicking <strong>I Agree & Submit</strong>, you confirm that you
-      understand and accept the loan terms.
+      By checking the box above and clicking <strong>I Agree & Submit</strong>,
+      you confirm that you understand and accept the loan terms.
     </p>
 
     <div class="modal-actions">
       <button id="loan-agreement-cancel-btn">Cancel</button>
-      <button id="loan-agreement-confirm-btn" class="primary">
+      <button id="loan-agreement-confirm-btn" class="primary" disabled>
         I Agree & Submit
       </button>
     </div>
@@ -558,51 +1069,96 @@
       <img src="/weelend-logo.png" alt="WeeLend Logo" />
     </div>
 
-    <!-- Title -->
-    <h2 class="borrower-dashboard-title">
-      Welcome, <span id="borrower-name-display">Borrower</span>!
-    </h2>
+    <div class="dp-page">
 
-    <!-- Borrower Stats -->
-    <div class="borrower-stats-container member-stats-container">
-
-      <div class="card stat-card">
-        <h3>Your Current Loan Limit</h3>
-        <p class="amount" id="borrower-loan-limit-display">₱0</p>
-        <span class="label">Maximum amount you are eligible to borrow.</span>
+      <div class="dp-header">
+        <div>
+          <h2 class="borrower-dashboard-title" style="margin:0;">
+            Welcome, <span id="borrower-name-display">Borrower</span>!
+          </h2>
+          <span class="dp-subtitle">Borrower Dashboard</span>
+        </div>
+        <span class="dp-live-pill"><span class="dp-live-dot"></span> Live data</span>
       </div>
 
-      <div class="card stat-card">
-        <h3>Guarantor Status</h3>
-        <p class="amount" id="borrower-guarantor-status">None</p>
-        <span class="label" id="borrower-guarantor-details">
-          No guarantor for your active loan.
-        </span>
+      <!-- Hero: Loan Limit -->
+      <div class="dp-hero">
+        <span class="dp-eyebrow">YOUR CURRENT LOAN LIMIT</span>
+        <p class="dp-amount" id="borrower-loan-limit-display">₱0</p>
+        <span class="dp-caption">Maximum amount you are eligible to borrow</span>
       </div>
 
-      <div class="card stat-card">
-        <h3>Your Current Loan</h3>
-        <p class="amount" id="borrower-current-loan-amount">₱0</p>
-        <span class="label">
-          Due Date: <span id="borrower-current-loan-due-date">N/A</span>
-        </span>
-        <span class="label">
-          Status: <span id="borrower-current-loan-status">No active loan</span>
-        </span>
+      <!-- Active Loan panel: credit score / amount / due date / status / guarantor combined -->
+      <div class="dp-panel">
+        <h3 class="dp-panel-title">Your Active Loan</h3>
+
+        <div class="dp-row">
+          <div class="dp-row-main">
+            <span class="dp-icon dp-icon-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg></span>
+            <div class="dp-row-text">
+              <span class="dp-row-label">Credit Score</span>
+              <span class="dp-row-sub">Starts at 100 · lowered by late payments, raised by paying on time</span>
+            </div>
+          </div>
+          <span class="dp-pill" id="borrower-credit-score">100</span>
+        </div>
+
+        <div class="dp-row">
+          <span class="dp-row-label">Loan Amount</span>
+          <span class="dp-row-value dp-row-value-lg" id="borrower-current-loan-amount">₱0</span>
+        </div>
+
+        <div class="dp-row">
+          <div class="dp-row-main">
+            <span class="dp-icon dp-icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+            <span class="dp-row-label">Due Date</span>
+          </div>
+          <span class="dp-row-value" id="borrower-current-loan-due-date">N/A</span>
+        </div>
+
+        <div class="dp-row">
+          <div class="dp-row-main">
+            <span class="dp-icon dp-icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <span class="dp-row-label">Status</span>
+          </div>
+          <span class="dp-row-value" id="borrower-current-loan-status">No active loan</span>
+        </div>
+
+        <div class="dp-row" style="border-bottom:none;">
+          <div class="dp-row-main">
+            <span class="dp-icon dp-icon-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21l8.84-8.61a5.5 5.5 0 0 0 0-7.78Z"/></svg></span>
+            <div class="dp-row-text">
+              <span class="dp-row-label">Guarantor</span>
+              <span class="dp-row-sub" id="borrower-guarantor-details">No guarantor for your active loan.</span>
+            </div>
+          </div>
+          <span class="dp-pill" id="borrower-guarantor-status">None</span>
+        </div>
+      </div>
+
+      <!-- ⚠️ Admin filed this request on the borrower's behalf and left
+           the agreement (and possibly the security guarantor) for the
+           borrower to complete themselves. -->
+      <div id="borrower-complete-request-banner" class="dp-panel" style="display:none; border:1px solid #f0ad4e; background:#fff8ec;">
+        <p style="margin:0 0 10px; color:#8a5a00; font-weight:600;">⚠️ Your loan request needs one more step</p>
+        <p id="borrower-complete-request-banner-text" style="margin:0 0 12px; color:#8a5a00;">Please review and confirm a few remaining details so your request can move forward.</p>
+        <button id="borrower-continue-request-btn" class="request-loan-btn dp-cta-primary" type="button">📝 Continue Your Request</button>
+      </div>
+
+      <div id="borrower-section-content" class="dp-cta-stack">
+        <!-- 💰 Request Loan -->
+        <button
+          id="borrower-request-loan-btn"
+          class="request-loan-btn dp-cta-primary"
+        >
+          💰 Request Loan
+        </button>
+
+        <!-- 🤝 MLF Easy Installment Affiliate Program -->
+        <button id="borrower-affiliate-btn" class="request-loan-btn dp-cta-secondary">🤝 Affiliate Program</button>
       </div>
 
     </div>
-
-<!-- 💰 Request Loan -->
-<button
-  id="borrower-request-loan-btn"
-  class="request-loan-btn"
->
-  💰 Request Loan
-</button>
-
-    <!-- Dynamic Content -->
-    <div id="borrower-section-content"></div>
 
   </div>
 
@@ -643,21 +1199,47 @@
     <h2>Borrower Code of Conduct & Rules</h2>
 
     <p>
-      Welcome to WeeLend. By applying for a loan, you are partnering with members
+      Welcome to WeeLend. By applying for a loan or purchase, you are partnering with members
       who pooled their savings to support your financial needs. Follow these rules
       to build trust and qualify for future opportunities.
     </p>
 
     <!-- ========================= -->
-    <!-- ELIGIBILITY -->
+    <!-- RESPONSIBILITY (LIABILITY) -->
     <!-- ========================= -->
     <details open>
+      <summary>⚖️ Your Responsibility</summary>
+      <p>
+        By applying for a loan, MLF Easy Installment, or Marimar's Credit Cart
+        purchase, you agree to repay it in full, on schedule.
+      </p>
+      <p>
+        Philippine law does not imprison anyone for failing to pay a debt
+        (1987 Constitution, Art. III, Sec. 20) — this is a civil, not a
+        criminal, matter. Still, agreeing to borrow from WeeLend means
+        accepting real consequences for not honoring that agreement:
+      </p>
+      <ul>
+        <li>Your balance remains a debt owed to the cooperative and its members — it does not disappear.</li>
+        <li>Missed or incomplete payments directly reduce your future credit limit and loan eligibility.</li>
+        <li>The cooperative may pursue any lawful civil remedy available to recover what's owed.</li>
+      </ul>
+      <p style="opacity:.75;font-size:13px;">
+        This section is a plain-language summary, not a substitute for a
+        formal borrower agreement reviewed by legal counsel.
+      </p>
+    </details>
+
+    <!-- ========================= -->
+    <!-- ELIGIBILITY -->
+    <!-- ========================= -->
+    <details>
       <summary>📝 Eligibility & Registration</summary>
       <ul>
         <li>Register using a valid email address.</li>
         <li>Status remains <strong>Pending</strong> until Admin approval.</li>
-        <li>Government ID upload is required.</li>
-        <li>Terms & Conditions must be accepted before loan processing.</li>
+        <li>Identity Verification (selfie + selfie-with-ID + government ID) must be submitted and admin-approved before you can request a loan or purchase.</li>
+        <li>Your Emergency Contact info is required as well.</li>
       </ul>
     </details>
 
@@ -667,10 +1249,9 @@
     <details>
       <summary>🤝 The Guarantor System</summary>
       <ul>
-        <li>Every loan must have a Member or Admin guarantor.</li>
-        <li>Your guarantor monitors your repayment progress.</li>
-        <li>Missed payments affect your guarantor’s Effort record.</li>
-        <li>Maintain good communication with your guarantor.</li>
+        <li>Coop loans use an effort-pool guarantor, named at request time — they earn a share of the year-end payout for guaranteeing you.</li>
+        <li>Any request over <strong>₱10,000</strong> (loan, MLF Easy Installment, or Marimar's Credit Cart) additionally requires a <strong>Security Guarantor</strong> — a real, reachable contact who completes their own identity verification. This cannot be yourself.</li>
+        <li>Maintain good communication with whoever guarantees you.</li>
       </ul>
     </details>
 
@@ -678,17 +1259,17 @@
     <!-- LOAN TERMS -->
     <!-- ========================= -->
     <details>
-      <summary>💳 Loan Terms & Interest</summary>
+      <summary>💳 Loan, Easy Installment & Credit Cart Terms</summary>
       <ul>
-        <li>Loan range: ₱1,000 – ₱100,000</li>
-        <li>Interest rate: 10% per month</li>
+        <li>Coop loan interest: <strong>10% per month</strong></li>
+        <li>MLF Easy Installment & Marimar's Credit Cart: 10% flat interest over the term</li>
         <li>Payment options:
           <ul>
             <li>Once monthly (30th)</li>
             <li>Semi-monthly (15th & 30th)</li>
           </ul>
         </li>
-        <li>Borrowers must track due dates via dashboard.</li>
+        <li>Track your due dates and balance from your dashboard.</li>
       </ul>
     </details>
 
@@ -698,9 +1279,9 @@
     <details>
       <summary>⚠️ Penalties & Late Fees</summary>
       <ul>
-        <li>3% penalty applied immediately after due date.</li>
+        <li>3% penalty applied immediately after the due date.</li>
         <li>Penalty increases to 5% after 15 days unpaid.</li>
-        <li>Only Admin may approve late fee waivers.</li>
+        <li>Only Admin may approve a late fee waiver.</li>
         <li>Waivers depend on payment history and hardship review.</li>
       </ul>
     </details>
@@ -711,15 +1292,15 @@
     <details>
       <summary>🧾 Payments & Digital Receipts</summary>
       <ul>
-        <li>All payments generate official digital receipts.</li>
-        <li>Receipts include:
+        <li>All payments generate official digital records under Repayment History.</li>
+        <li>Records include:
           <ul>
             <li>Principal</li>
             <li>Interest</li>
             <li>Late fees (if any)</li>
           </ul>
         </li>
-        <li>Keep receipts for your personal records.</li>
+        <li>Keep these for your personal records.</li>
       </ul>
     </details>
 
@@ -727,11 +1308,11 @@
     <!-- BECOMING A MEMBER -->
     <!-- ========================= -->
     <details>
-      <summary>🚀 Path to Becoming a Lender</summary>
+      <summary>🚀 Path to Becoming a Member</summary>
       <ul>
-        <li>Consistent on-time payments improve eligibility.</li>
-        <li>Good standing borrowers may be prioritized for membership.</li>
-        <li>Members earn from Capital and Effort pools.</li>
+        <li>Consistent, on-time, penalty-free payments build your standing with the cooperative.</li>
+        <li>Members contribute monthly shares and share in the cooperative's Capital and Effort Pool dividends — borrowers do not.</li>
+        <li>Talk to an Admin if you're interested in becoming a full member.</li>
       </ul>
     </details>
 
@@ -741,7 +1322,7 @@
     <details>
       <summary>❌ Grounds for Disqualification</summary>
       <ul>
-        <li>False registration information</li>
+        <li>False registration or verification information</li>
         <li>Repeated missed payments without communication</li>
         <li>Fraudulent activity within the app</li>
       </ul>
@@ -798,10 +1379,75 @@
       <input id="borrower-profile-contact" type="text" placeholder="Optional" />
     </div>
 
+    <!-- 🏠 Home Address (editable) -->
+    <h4 class="profile-subsection-title">🏠 Home Address</h4>
+
     <div class="modal-form-group">
-      <label>Address</label>
-      <textarea id="borrower-profile-address" placeholder="Enter address"></textarea>
+      <label>House/Unit No., Street, Purok/Sitio</label>
+      <input id="borrower-profile-home-street" type="text" placeholder="Street" />
     </div>
+
+    <div class="modal-form-group">
+      <label>Barangay</label>
+      <input id="borrower-profile-home-barangay" type="text" placeholder="Barangay" />
+    </div>
+
+    <div class="modal-form-group">
+      <label>City / Municipality</label>
+      <input id="borrower-profile-home-city" type="text" placeholder="City / Municipality" />
+    </div>
+
+    <div class="modal-form-group">
+      <label>Province</label>
+      <input id="borrower-profile-home-province" type="text" placeholder="Province" />
+    </div>
+
+    <div class="modal-form-group">
+      <label>ZIP Code</label>
+      <input id="borrower-profile-home-zip" type="text" placeholder="ZIP Code" inputmode="numeric" />
+    </div>
+
+    <!-- 🚨 Emergency Contact (editable) -->
+    <h4 class="profile-subsection-title">🚨 Emergency Contact</h4>
+
+    <div class="modal-form-group">
+      <label>Contact Full Name</label>
+      <input id="borrower-profile-emergency-name" type="text" placeholder="Contact Full Name" />
+    </div>
+
+    <div class="modal-form-group">
+      <label>Relationship</label>
+      <input id="borrower-profile-emergency-relationship" type="text" placeholder="e.g. Spouse, Parent" />
+    </div>
+
+    <div class="modal-form-group">
+      <label>Contact Mobile Number</label>
+      <input id="borrower-profile-emergency-phone" type="tel" placeholder="Contact Mobile Number" />
+    </div>
+
+    <!-- 🪪 Identity Verification (one-time, reused across loans / Easy Installment / Pa-benta) -->
+    <h4 class="profile-subsection-title">🪪 Identity Verification</h4>
+    <p id="borrower-verification-status" class="verification-status-badge"></p>
+    <p id="borrower-verification-note" class="verification-note"></p>
+
+    <div id="borrower-verification-form" class="verification-thumbs">
+      <div class="verification-thumb-slot">
+        <img id="borrower-verify-selfie-thumb" class="verification-thumb" style="display:none;" />
+        <button type="button" id="borrower-verify-selfie-btn" class="verify-capture-btn">📸 Take Selfie</button>
+      </div>
+      <div class="verification-thumb-slot">
+        <img id="borrower-verify-selfie-id-thumb" class="verification-thumb" style="display:none;" />
+        <button type="button" id="borrower-verify-selfie-id-btn" class="verify-capture-btn">🪪 Selfie Holding ID</button>
+      </div>
+      <div class="verification-thumb-slot">
+        <img id="borrower-verify-govid-thumb" class="verification-thumb" style="display:none;" />
+        <label for="borrower-verify-govid-input" class="verify-capture-btn">🗂 Upload Gov ID</label>
+        <input type="file" id="borrower-verify-govid-input" accept="image/*,.pdf" hidden />
+      </div>
+    </div>
+
+    <button type="button" id="borrower-verify-submit-btn" class="verify-submit-btn">Submit for Verification</button>
+    <p id="borrower-verify-message"></p>
 
     <button id="borrower-profile-save-btn">Save Changes</button>
 
@@ -845,6 +1491,42 @@
     <button id="contracts-back-btn" class="back-btn">⬅ Back</button>
 
   <div id="pa-swipe-contracts-root"></div>
+
+</section>
+
+<!-- ============================= -->
+<!-- 📜 MY AGREEMENTS PAGE -->
+<!-- (shared by member + borrower) -->
+<!-- ============================= -->
+<section id="page-my-agreements" class="page">
+
+    <button id="agreements-back-btn" class="back-btn">⬅ Back</button>
+
+  <div id="my-agreements-root"></div>
+
+</section>
+
+<!-- ============================= -->
+<!-- 🧾 MY RECEIPTS PAGE -->
+<!-- (shared by member + borrower) -->
+<!-- ============================= -->
+<section id="page-my-receipts" class="page">
+
+    <button id="receipts-back-btn" class="back-btn">⬅ Back</button>
+
+  <div id="my-receipts-root"></div>
+
+</section>
+
+<!-- ============================= -->
+<!-- 🤝 AFFILIATE PROGRAM PAGE -->
+<!-- (shared by member + borrower) -->
+<!-- ============================= -->
+<section id="page-affiliate" class="page">
+
+    <button id="affiliate-back-btn" class="back-btn">⬅ Back</button>
+
+  <div id="affiliate-dashboard-root"></div>
 
 </section>
 
@@ -910,9 +1592,7 @@
   <button class="back-btn" id="grocery-back-btn">⬅ Back</button>
   <h2>🛒 Marimar's Credit Cart</h2>
 
-  <div id="grocery-content" class="card" style="padding:16px;">
-    <p>Coming next: grocery product grid + 1-month checkout.</p>
-  </div>
+  <div id="credit-cart-content"></div>
 </section>
 
 <!-- ============================= -->
@@ -921,9 +1601,7 @@
 <section id="page-marketplace" class="page">
   <button class="back-btn" id="marketplace-back-btn">⬅ Back</button>
   <h2>🏪 Pa-benta Marketplace</h2>
-  <div id="marketplace-content" class="card" style="padding:16px;">
-    <p>Coming next: listings + create post form + admin approval.</p>
-  </div>
+  <div id="marketplace-content"></div>
 </section>
 
     <!-- ADMIN DASHBOARD -->
@@ -932,10 +1610,10 @@
 
         <aside id="admin-sidebar">
       <h3>Admin Navigation</h3>
-<nav id="admin-nav-links">
+      <nav id="admin-nav-links">
   <button id="overview-tab" class="tab-button active">Overview</button>
 
-  <!-- 🏦 COOP GROUP -->
+  <!-- 🏦 COOP — MEMBERS & LOANS GROUP -->
   <div class="nav-group">
     <button class="nav-group-header" data-group="coop">
       🏦 Coop <span class="chevron">▾</span>
@@ -947,7 +1625,30 @@
       <button id="pending-loan-requests-tab" class="tab-button">Loan Requests</button>
       <button id="all-loans-tab" class="tab-button">All Loans</button>
       <button id="repayments-tab" class="tab-button">Repayments</button>
+    </div>
+  </div>
+
+  <!-- 📄 COOP — DOCUMENTS GROUP -->
+  <div class="nav-group">
+    <button class="nav-group-header" data-group="coop-docs">
+      📄 Coop Documents <span class="chevron">▾</span>
+    </button>
+    <div class="nav-group-items" data-group-items="coop-docs">
+      <button id="loan-contracts-admin-tab" class="tab-button">🧾 Loan Contracts</button>
+      <button id="loan-agreements-admin-tab" class="tab-button">📜 Loan Agreements</button>
+    </div>
+  </div>
+
+  <!-- ⚙️ COOP — SETTINGS GROUP -->
+  <div class="nav-group">
+    <button class="nav-group-header" data-group="coop-settings">
+      ⚙️ Coop Settings <span class="chevron">▾</span>
+    </button>
+    <div class="nav-group-items" data-group-items="coop-settings">
       <button id="payment-settings-tab" class="tab-button">💳 Payment Settings</button>
+      <button id="credit-limits-tab" class="tab-button">💰 Credit Limits</button>
+      <button id="trust-fund-tab" class="tab-button">🏦 Trust Fund</button>
+      <button id="fiscal-payout-tab" class="tab-button">🎉 Fiscal Year Payout</button>
     </div>
   </div>
 
@@ -961,6 +1662,10 @@
       <button id="pa-swipe-requests-tab" class="tab-button">🧾 Requests</button>
       <button id="pa-swipe-collections-tab" class="tab-button">💳 Collections</button>
       <button id="pa-swipe-contracts-admin-tab" class="tab-button">🧾 Contracts</button>
+      <button id="pa-swipe-agreements-admin-tab" class="tab-button">📜 Agreements</button>
+      <button id="affiliate-applications-tab" class="tab-button">🤝 Affiliate Applications</button>
+      <button id="affiliate-payouts-tab" class="tab-button">💵 Affiliate Payouts</button>
+      <button id="pa-swipe-earnings-tab" class="tab-button">💰 Earnings</button>
     </div>
   </div>
 
@@ -969,11 +1674,13 @@
     <button class="nav-group-header" data-group="creditcart">
       🛒 Marimar's Credit Cart <span class="chevron">▾</span>
     </button>
-<div class="nav-group-items" data-group-items="creditcart">
-  <button id="credit-cart-requests-tab" class="tab-button">📝 Requests</button>
-  <button id="credit-cart-collections-tab" class="tab-button">💳 Collections</button>
-  <button id="credit-cart-contracts-admin-tab" class="tab-button">🧾 Contracts</button>
-</div>
+    <div class="nav-group-items" data-group-items="creditcart">
+      <button id="credit-cart-requests-tab" class="tab-button">📝 Requests</button>
+      <button id="credit-cart-collections-tab" class="tab-button">💳 Collections</button>
+      <button id="credit-cart-contracts-admin-tab" class="tab-button">🧾 Contracts</button>
+      <button id="credit-cart-agreements-admin-tab" class="tab-button">📜 Agreements</button>
+      <button id="credit-cart-earnings-tab" class="tab-button">💰 Earnings</button>
+    </div>
   </div>
 
   <!-- 🏪 PA-BENTA MARKETPLACE GROUP (built after) -->
@@ -981,10 +1688,10 @@
     <button class="nav-group-header" data-group="pabenta">
       🏪 Pa-benta Marketplace <span class="chevron">▾</span>
     </button>
-<div class="nav-group-items" data-group-items="pabenta">
-  <button id="pabenta-shops-admin-tab" class="tab-button">🏪 Shop Approvals</button>
-  <button id="pabenta-listings-admin-tab" class="tab-button">📦 Listing Approvals</button>
-</div>
+    <div class="nav-group-items" data-group-items="pabenta">
+      <button id="pabenta-shops-admin-tab" class="tab-button">🏪 Shop Approvals</button>
+      <button id="pabenta-listings-admin-tab" class="tab-button">📦 Listing Approvals</button>
+    </div>
   </div>
 </nav>
     </aside>
@@ -999,6 +1706,14 @@
     </div>
 
   </div>
+</section>
+
+<!-- ============================= -->
+<!-- 🛡️ SECURITY GUARANTOR ACTIVATION -->
+<!-- (reached only via a ?guarantorInvite= link) -->
+<!-- ============================= -->
+<section id="page-guarantor-activate" class="page">
+  <div id="guarantor-activate-root"></div>
 </section>
 
 </main>
@@ -1186,10 +1901,124 @@
       </div>
       <div class="modal-form-group">
         <label for="coe-document-upload">Upload Certificate of Employment (COE) or Proof of Income (Optional):</label>
+        <input type="file" id="coe-document-upload" accept="image/*,.pdf" />
+      </div>
+
+      <!-- 🛡️ Security Guarantor — required for loan amounts over ₱10,000.
+           Hidden until the slider crosses the threshold. Separate from the
+           "Select a Guarantor" effort-pool field above. -->
+      <div id="loan-security-guarantor-section" style="display:none;">
+        <h4 class="profile-subsection-title">🛡️ Security Guarantor (required over ₱10,000)</h4>
+        <p class="verification-note">A family member the coop can contact if this loan can't be repaid. They'll get a link to create their own account and verify their identity.</p>
+
+        <div class="modal-form-group">
+          <label>Full Name</label>
+          <input type="text" id="loan-guarantor-name" placeholder="Full Name" />
+        </div>
+        <div class="modal-form-group">
+          <label>Relationship</label>
+          <input type="text" id="loan-guarantor-relationship" placeholder="e.g. Sibling, Parent" />
+        </div>
+        <div class="modal-form-group">
+          <label>Mobile Number</label>
+          <input type="tel" id="loan-guarantor-phone" placeholder="Mobile Number" />
+        </div>
+        <div class="modal-form-group">
+          <label>Email</label>
+          <input type="email" id="loan-guarantor-email" placeholder="Email" />
+        </div>
+        <div class="modal-form-group">
+          <label>House/Unit No., Street, Purok/Sitio</label>
+          <input type="text" id="loan-guarantor-home-street" placeholder="Street" />
+        </div>
+        <div class="modal-form-group">
+          <label>Barangay</label>
+          <input type="text" id="loan-guarantor-home-barangay" placeholder="Barangay" />
+        </div>
+        <div class="modal-form-group">
+          <label>City / Municipality</label>
+          <input type="text" id="loan-guarantor-home-city" placeholder="City / Municipality" />
+        </div>
+        <div class="modal-form-group">
+          <label>Province</label>
+          <input type="text" id="loan-guarantor-home-province" placeholder="Province" />
+        </div>
+        <div class="modal-form-group">
+          <label>ZIP Code</label>
+          <input type="text" id="loan-guarantor-home-zip" placeholder="ZIP Code" inputmode="numeric" />
+        </div>
       </div>
 
       <button type="submit" id="submit-loan-request-btn">Submit Loan Request</button>
       <p id="loan-request-message" style="color: red;"></p>
+    </form>
+  </div>
+</div>
+
+<!-- 📝 Continue Your Request modal — for a borrower completing an
+     admin-filed request: confirming the agreement, and (if required)
+     adding the security guarantor's details themselves. -->
+<div id="complete-request-modal" class="modal">
+  <div class="modal-content">
+    <span class="close-btn" id="close-complete-request-modal">&times;</span>
+    <h2>Continue Your Loan Request</h2>
+    <p style="margin-top:-8px; color:#666;">This request was filed by admin on your behalf. Please review and confirm the details below.</p>
+    <form id="complete-request-form">
+
+      <!-- 📄 Agreement section (shown when not yet accepted) -->
+      <div id="complete-request-agreement-section">
+        <h3 style="margin-bottom:6px;">Loan Agreement</h3>
+        <div id="complete-request-agreement-summary" class="modal-form-group"></div>
+        <label style="display:flex; align-items:flex-start; gap:8px; margin:10px 0;">
+          <input type="checkbox" id="complete-request-agreement-checkbox" style="margin-top:4px;" />
+          <span>I have reviewed the loan terms above and agree to them.</span>
+        </label>
+      </div>
+
+      <!-- 🛡️ Security guarantor section (shown only when required + pending) -->
+      <div id="complete-request-guarantor-section" style="display:none;">
+        <h3 style="margin-bottom:6px;">Security Guarantor</h3>
+        <p style="margin-top:-4px; color:#666;">Required for loans over ₱10,000. This person will receive an activation link to verify their identity.</p>
+        <div class="modal-form-group">
+          <label>Full Name</label>
+          <input type="text" id="sg-guarantor-name" placeholder="Full Name" />
+        </div>
+        <div class="modal-form-group">
+          <label>Relationship</label>
+          <input type="text" id="sg-guarantor-relationship" placeholder="e.g. Sibling, Parent" />
+        </div>
+        <div class="modal-form-group">
+          <label>Mobile Number</label>
+          <input type="tel" id="sg-guarantor-phone" placeholder="Mobile Number" />
+        </div>
+        <div class="modal-form-group">
+          <label>Email</label>
+          <input type="email" id="sg-guarantor-email" placeholder="Email" />
+        </div>
+        <div class="modal-form-group">
+          <label>House/Unit No., Street, Purok/Sitio</label>
+          <input type="text" id="sg-guarantor-home-street" placeholder="Street" />
+        </div>
+        <div class="modal-form-group">
+          <label>Barangay</label>
+          <input type="text" id="sg-guarantor-home-barangay" placeholder="Barangay" />
+        </div>
+        <div class="modal-form-group">
+          <label>City / Municipality</label>
+          <input type="text" id="sg-guarantor-home-city" placeholder="City / Municipality" />
+        </div>
+        <div class="modal-form-group">
+          <label>Province</label>
+          <input type="text" id="sg-guarantor-home-province" placeholder="Province" />
+        </div>
+        <div class="modal-form-group">
+          <label>ZIP Code</label>
+          <input type="text" id="sg-guarantor-home-zip" placeholder="ZIP Code" inputmode="numeric" />
+        </div>
+      </div>
+
+      <button type="submit" id="submit-complete-request-btn">Submit</button>
+      <p id="complete-request-message" style="color: red;"></p>
     </form>
   </div>
 </div>
@@ -1206,6 +2035,8 @@
       <button type="button" data-theme="orange">🟧 Orange</button>
       <button type="button" data-theme="aqua">💎 Aqua</button>
       <button type="button" data-theme="black">🖤 Black</button>
+      <button type="button" data-theme="burgundy">🍷 Burgundy</button>
+      <button type="button" data-theme="jungle">🌲 Dark Jungle Green</button>
     </div>
 
     <button type="button" id="close-theme-modal">Close</button>

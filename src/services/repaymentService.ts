@@ -12,6 +12,12 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { runTransaction, increment } from "firebase/firestore";
+import {
+  computeCreditScoreDelta,
+  clampCreditScore,
+  computeCreditLimitAfterPayoff,
+  DEFAULT_CREDIT_SCORE,
+} from "./creditEngine";
 
 /* =========================================================
    ⚠️ LEGACY REPAYMENT FUNCTIONS (KEEP FOR NOW)
@@ -69,6 +75,89 @@ export async function getRepaymentSchedule(loanId: string) {
   const snapshot = await getDocs(scheduleRef);
 
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+/* =========================================================
+   🔔 DUE-DATE LOOKUP — for the Member/Borrower dashboard nudge
+   banner. Reads the same schedule subcollection the admin
+   Repayments tab reads (the real source of truth for due dates —
+   activeLoans.nextDueDate is only set once at loan creation and
+   goes stale the moment the first payment is collected).
+   ========================================================= */
+export interface NextDueInstallment {
+  loanId: string;
+  dueDate: Date;
+  totalDue: number; // includes the late fee if already overdue
+  isOverdue: boolean;
+  daysDiff: number; // negative = days overdue, 0 = due today, positive = days until due
+}
+
+/** Earliest unpaid installment across all of a user's ACTIVE loans, or null if none. */
+export async function getNextDueInstallmentForUser(
+  userId: string
+): Promise<NextDueInstallment | null> {
+  const loansSnap = await getDocs(
+    query(
+      collection(db, "activeLoans"),
+      where("userId", "==", userId),
+      where("status", "==", "active")
+    )
+  );
+
+  if (loansSnap.empty) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let earliest: NextDueInstallment | null = null;
+
+  for (const loanDoc of loansSnap.docs) {
+    const scheduleSnap = await getDocs(
+      collection(db, "activeLoans", loanDoc.id, "schedule")
+    );
+
+    for (const itemDoc of scheduleSnap.docs) {
+      const item = itemDoc.data() as any;
+
+      if (item.status === "voided") continue;
+      if (item.paid && !item.partial) continue;
+
+      const dueDate =
+        item.dueDate?.toDate ? item.dueDate.toDate() :
+        item.dueDate instanceof Date ? item.dueDate :
+        new Date(item.dueDate);
+
+      if (isNaN(dueDate.getTime())) continue;
+
+      const dueDay = new Date(dueDate);
+      dueDay.setHours(0, 0, 0, 0);
+      const daysDiff = Math.round((dueDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+      const principal = Number(item.principalDue ?? 0);
+      const interest = Number(item.interestDue ?? 0);
+      const base = Number(item.remainingDue ?? (principal + interest));
+
+      let lateRate = 0;
+      if (daysDiff < 0) {
+        const overdueDays = -daysDiff;
+        lateRate = overdueDays >= 15 ? 0.05 : 0.03;
+      }
+
+      const totalDue = base + base * lateRate;
+
+      if (!earliest || dueDate.getTime() < earliest.dueDate.getTime()) {
+        earliest = {
+          loanId: loanDoc.id,
+          dueDate,
+          totalDue,
+          isOverdue: daysDiff < 0,
+          daysDiff,
+        };
+      }
+    }
+  }
+
+  return earliest;
 }
 
 export async function markScheduledPaymentPaid(
@@ -145,10 +234,19 @@ export async function getActiveLoanById(loanId: string) {
 const ROUNDING_TOLERANCE = 1; // pesos
 
 function safeFinalBalance(rawBalance: number): number {
+  // 🐛 FIX: this used to only catch a tiny NEGATIVE overshoot (e.g.
+  // -0.02 from floating-point drift across several payments) and snap
+  // that to 0. It never caught the mirror case — a tiny POSITIVE
+  // leftover like 0.02000000000436557 — so a loan that was truly paid
+  // off in full could be left with a microscopic non-zero balance
+  // forever, which made `newRemainingBalance === 0` fail and kept the
+  // loan's status stuck on "active" even though every installment was
+  // paid. Treating BOTH directions of drift as "fully paid" within the
+  // same tolerance fixes that.
+  if (Math.abs(rawBalance) <= ROUNDING_TOLERANCE) {
+    return 0; // tiny rounding drift, either direction — treat as fully paid
+  }
   if (rawBalance < 0) {
-    if (rawBalance >= -ROUNDING_TOLERANCE) {
-      return 0; // tiny rounding drift — treat as fully paid
-    }
     throw new Error("Overpayment blocked");
   }
   return rawBalance;
@@ -178,6 +276,7 @@ export async function collectScheduledPaymentTransaction(params: {
       const loanSnap = await tx.get(loanRef);
       const schedSnap = await tx.get(schedRef);
       const coopSnap = await tx.get(coopRef);
+      const userSnap = await tx.get(userRef);
 
       if (!loanSnap.exists()) throw new Error("Loan not found");
       if (!schedSnap.exists()) throw new Error("Schedule not found");
@@ -185,6 +284,7 @@ export async function collectScheduledPaymentTransaction(params: {
 
       const loan = loanSnap.data();
       const sched = schedSnap.data();
+      const borrowerProfile = userSnap.exists() ? userSnap.data() : null;
 
       if (sched.paid) throw new Error("Installment already paid");
 
@@ -278,15 +378,41 @@ export async function collectScheduledPaymentTransaction(params: {
 
       tx.update(schedRef, schedUpdate);
 
-      tx.update(loanRef, {
+      // --- Credit score (per installment) + credit limit (at payoff) ---
+      // hadAnyLatePayment carries forward on the loan doc so a loan that
+      // was ever late stays flagged even after later on-time payments,
+      // and the limit engine can tell "clean payoff" from "recovered but
+      // was late at some point" once the loan is fully settled.
+      const loanHadLateBefore = Boolean(loan.hadAnyLatePayment);
+      const isLateNow = lateRate > 0;
+      const anyLateOverall = loanHadLateBefore || isLateNow;
+
+      const loanUpdate: any = {
         remainingBalance: newRemainingBalance,
         status: newRemainingBalance === 0 ? "completed" : "active",
         lastPaymentAt: serverTimestamp(),
-      });
+      };
+      if (fullyPaid) {
+        loanUpdate.hadAnyLatePayment = anyLateOverall;
+      }
+      tx.update(loanRef, loanUpdate);
 
-      tx.update(userRef, {
+      const currentCreditScore = Number(borrowerProfile?.creditScore ?? DEFAULT_CREDIT_SCORE);
+      const scoreDelta = fullyPaid ? computeCreditScoreDelta(lateRate) : 0;
+      const newCreditScore = clampCreditScore(currentCreditScore + scoreDelta);
+
+      const userUpdate: any = {
         loanBalance: increment(-principalPaidFinal),
-      });
+        creditScore: newCreditScore,
+      };
+
+      if (fullyPaid && newRemainingBalance === 0) {
+        const role: "member" | "borrower" = borrowerProfile?.role === "borrower" ? "borrower" : "member";
+        const currentLimit = Number(borrowerProfile?.loanLimit ?? 0);
+        userUpdate.loanLimit = computeCreditLimitAfterPayoff(currentLimit, role, anyLateOverall);
+      }
+
+      tx.update(userRef, userUpdate);
 
       const payRef = doc(paymentsRef);
 
@@ -374,6 +500,7 @@ export async function collectPartialPaymentTransaction(params: {
       const loanSnap = await tx.get(loanRef);
       const schedSnap = await tx.get(schedRef);
       const coopSnap = await tx.get(coopRef);
+      const userSnap = await tx.get(userRef);
 
       if (!loanSnap.exists()) throw new Error("Loan not found");
       if (!schedSnap.exists()) throw new Error("Schedule not found");
@@ -381,6 +508,7 @@ export async function collectPartialPaymentTransaction(params: {
 
       const loan = loanSnap.data();
       const sched = schedSnap.data();
+      const borrowerProfile = userSnap.exists() ? userSnap.data() : null;
 
       if (sched.paid) throw new Error("Installment already paid");
 
@@ -439,11 +567,24 @@ export async function collectPartialPaymentTransaction(params: {
       const newRemainingBalance = safeFinalBalance(remainingLoanBalance - principalPaid);
 
       // -------- Updates --------
-      tx.update(loanRef, {
+      // A partial payment never marks the installment itself "paid" (see
+      // below), so no per-installment credit-score delta happens here —
+      // that fires later, when a follow-up payment actually completes
+      // it. But the LOAN as a whole can still reach a zero balance via a
+      // partial payment (e.g. the last bit of principal clears here even
+      // though a small late fee remains) — so the credit-limit-at-payoff
+      // check still applies, same as the full-payment path.
+      const loanHadLateBefore = Boolean(loan.hadAnyLatePayment);
+      const isLateNow = lateRate > 0;
+      const anyLateOverall = loanHadLateBefore || isLateNow;
+
+      const loanUpdate: any = {
         remainingBalance: newRemainingBalance,
         status: newRemainingBalance === 0 ? "completed" : "active",
         lastPaymentAt: serverTimestamp(),
-      });
+        hadAnyLatePayment: anyLateOverall,
+      };
+      tx.update(loanRef, loanUpdate);
 
       tx.update(schedRef, {
         partial: true,
@@ -455,9 +596,17 @@ export async function collectPartialPaymentTransaction(params: {
         lastPartialAt: serverTimestamp(),
       });
 
-      tx.update(userRef, {
+      const userUpdate: any = {
         loanBalance: increment(-principalPaid),
-      });
+      };
+
+      if (newRemainingBalance === 0) {
+        const role: "member" | "borrower" = borrowerProfile?.role === "borrower" ? "borrower" : "member";
+        const currentLimit = Number(borrowerProfile?.loanLimit ?? 0);
+        userUpdate.loanLimit = computeCreditLimitAfterPayoff(currentLimit, role, anyLateOverall);
+      }
+
+      tx.update(userRef, userUpdate);
 
       const payRef = doc(paymentsRef);
 

@@ -31,25 +31,45 @@ service cloud.firestore {
     // =========================
     // 👥 USERS
     // =========================
-		match /users/{userId} {
+    match /users/{userId} {
 
-  // ✅ Any signed-in user can read profiles
-  allow get, list: if isSignedIn();
+      // ✅ Any signed-in user can read profiles
+      allow get, list: if isSignedIn();
 
-  // ✅ User can create only their own profile doc
-  allow create: if isSelf(userId);
+      // ✅ User can create only their own profile doc
+      allow create: if isSelf(userId);
 
-  // ✅ Admin can update anything
-  allow update: if isAdmin();
+      // ✅ Admin can update anything
+      allow update: if isAdmin();
 
-  // ✅ User can update ONLY safe profile fields (NOT commitments)
-  allow update: if isSelf(userId)
-    && request.resource.data.diff(resource.data).changedKeys()
-      .hasOnly(["contactNumber", "address", "profileImageUrl", "theme"]);
+      // ✅ User can update ONLY safe profile fields (NOT commitments)
+      allow update: if isSelf(userId)
+        && request.resource.data.diff(resource.data).changedKeys()
+          .hasOnly(["contactNumber", "address", "profileImageUrl", "theme", "phoneNumber", "photoURL", "homeAddress", "emergencyContact"]);
 
-  // ❌ Never allow delete
-  allow delete: if false;
-}
+      // ✅ Member can submit/update ONLY their own identity verification
+      // (selfie/selfie-with-ID/gov ID photos) — but can never self-approve.
+      // Status may only land on "not_started" or "pending_review"; only
+      // admin (via the unconditional isAdmin() update rule above) can
+      // move it to "approved" or "rejected".
+      allow update: if isSelf(userId)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["identityVerification"])
+        && request.resource.data.identityVerification.status in ["not_started", "pending_review"];
+
+      // ✅ User can apply for the affiliate program (self-service),
+      // but can ONLY move themselves INTO "pending" — never self-approve,
+      // and only from a non-active state (none/rejected/unset).
+      allow update: if isSelf(userId)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["affiliateStatus", "affiliateAppliedAt"])
+        && request.resource.data.affiliateStatus == "pending"
+        && (resource.data.role == "member" || resource.data.role == "borrower")
+        && (!("affiliateStatus" in resource.data)
+            || resource.data.affiliateStatus == "none"
+            || resource.data.affiliateStatus == "rejected");
+
+      // ✅ Admin can delete only PENDING applications (not approved accounts)
+      allow delete: if isAdmin() && resource.data.status == "pending";
+    }
 
     // =========================
     // 📝 LOAN REQUESTS
@@ -60,10 +80,57 @@ service cloud.firestore {
         || request.auth.uid == resource.data.userId
         || request.auth.uid == resource.data.guarantorId;
 
-      allow create: if isSignedIn()
-        && request.auth.uid == request.resource.data.userId;
+      // Three ways a loanRequests doc may be created:
+      //  1) A member/borrower submits their own request (userId == them).
+      //  2) Admin files one on someone's behalf — either for a real
+      //     account (targetUserId) or a no-account placeholder
+      //     (userId == "", hasAccount == false, manualName set).
+      //  3) A member refers someone who has no account yet, naming
+      //     THEMSELVES as guarantor — they can never write another
+      //     real account's uid into userId, only the "" placeholder.
+      allow create: if isSignedIn() && (
+        (request.auth.uid == request.resource.data.userId)
+        || (isAdmin() && request.resource.data.get('submittedByAdmin', false) == true)
+        || (
+          request.resource.data.get('hasAccount', true) == false
+          && request.resource.data.userId == ""
+          && request.resource.data.get('submittedByAdmin', false) == false
+          && request.resource.data.guarantorId == request.auth.uid
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "member"
+        )
+      );
 
-      allow update: if isAdmin();
+      // Admin can update anything. A signed-in borrower may ALSO update
+      // their own pending request, but ONLY to complete what an
+      // admin-filed request left for them to fill in themselves:
+      // confirming the agreement, and/or attaching a security guarantor
+      // that was left pending (adminSubmitLoanRequest with
+      // skipSecurityGuarantorForNow) — never anything else on the doc.
+      allow update: if isAdmin()
+        || (
+          isSignedIn()
+          && request.auth.uid == resource.data.userId
+          && resource.data.status == "pending"
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['securityGuarantorInviteId', 'securityGuarantorPending', 'agreementAcceptance'])
+          // agreementAcceptance: only settable once, null -> non-null
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['agreementAcceptance'])
+            || (
+              resource.data.get('agreementAcceptance', null) == null
+              && request.resource.data.agreementAcceptance != null
+            )
+          )
+          // guarantor fields: only settable while genuinely pending and unset
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['securityGuarantorInviteId', 'securityGuarantorPending'])
+            || (
+              resource.data.get('securityGuarantorPending', false) == true
+              && resource.data.get('securityGuarantorInviteId', null) == null
+              && request.resource.data.securityGuarantorPending == false
+              && request.resource.data.securityGuarantorInviteId is string
+            )
+          )
+        );
       allow delete: if false;
     }
 
@@ -101,24 +168,24 @@ service cloud.firestore {
       }
     }
 
-		// =========================
-		// 💸 PAYMENTS (GLOBAL)
-		// =========================
-		match /payments/{paymentId} {
+    // =========================
+    // 💸 PAYMENTS (GLOBAL)
+    // =========================
+    match /payments/{paymentId} {
 
-		  // ✅ signed-in users can list (filtered client-side)
-		  allow list: if isSignedIn();
+      // ✅ signed-in users can list (filtered client-side)
+      allow list: if isSignedIn();
 
-		  // ✅ admin OR owner can read
-		  allow get: if isAdmin()
-		    || request.auth.uid == resource.data.userId;
+      // ✅ admin OR owner can read
+      allow get: if isAdmin()
+        || request.auth.uid == resource.data.userId;
 
-		  // 🔐 only admin can create
-		  allow create: if isAdmin();
+      // 🔐 only admin can create
+      allow create: if isAdmin();
 
-  		// ❌ immutable
-  		allow update, delete: if false;
-		}
+      // ❌ immutable
+      allow update, delete: if false;
+    }
 
     // =========================
     // 📊 COOP SUMMARY
@@ -129,190 +196,465 @@ service cloud.firestore {
       allow create, update: if isAdmin();
       allow delete: if false;
     }
-    
+
     // =========================
-		// 💳 PAYMENT SETTINGS
-		// =========================
-		match /paymentSettings/{docId} {
-
-  	// ✅ Any logged-in user can READ payment methods
-		  allow list, get: if isSignedIn();
-
-	  // 🔐 Only admin can WRITE
-  		allow create, update: if isAdmin();
-
-  		allow delete: if false;
-		}
-    
+    // 🏦 TRUST FUND EXPENSES — liquidation log, member-visible for
+    // transparency. Immutable once recorded (no update/delete) so it
+    // stays a real audit trail; only admin can add entries.
     // =========================
-		// 📜 MEMBER SHARE RECEIPTS
-		// =========================
-		match /memberShareReceipts/{receiptId} {
+    match /trustFundExpenses/{expenseId} {
 
-		  // 🔐 Admin can read & write
-		  allow create, get, list: if isAdmin();
+      allow list, get: if isSignedIn();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
 
-		  // 👤 Member can read OWN receipts
-		  allow get, list: if isSignedIn()
-		    && request.auth.uid == resource.data.memberId;
+    // =========================
+    // 🎉 PAYOUT HISTORY — permanent, member-visible snapshot of each
+    // fiscal year-end payout release. Immutable once written (no
+    // update/delete) — this is the audit trail for money that's already
+    // gone back to ₱0 on the live pool/balance fields.
+    // =========================
+    match /payoutHistory/{payoutId} {
 
-		  // ❌ No updates or deletes (receipts are immutable)
-		  allow update, delete: if false;
-		}
+      allow list, get: if isSignedIn();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
 
-// =========================
-// 🛍️ SHOP CONSENTS (Terms Acceptance)
-// =========================
-match /shopConsents/{userId} {
+    // =========================
+    // 💳 PAYMENT SETTINGS
+    // =========================
+    match /paymentSettings/{docId} {
 
-  // User can read their own consent
-  allow get: if isSelf(userId);
+      // ✅ Any logged-in user can READ payment methods
+      allow list, get: if isSignedIn();
 
-  // User can create/update their own consent doc
-  allow create, update: if isSelf(userId);
+      // 🔐 Only admin can WRITE
+      allow create, update: if isAdmin();
 
-  // Optional: admin can read all consents (for audit)
-  allow list: if isAdmin();
+      allow delete: if false;
+    }
 
-  // No deletes
-  allow delete: if false;
-}
+    // =========================
+    // 📜 MEMBER SHARE RECEIPTS
+    // =========================
+    match /memberShareReceipts/{receiptId} {
 
-// =========================
-// 🟦 PA-SWIPE PRODUCTS
-// =========================
-match /paSwipeProducts/{docId} {
-  allow get, list: if isSignedIn();
-  allow create, update, delete: if isAdmin();
-}
+      // 🔐 Admin can read & write
+      allow create, get, list: if isAdmin();
 
-// =========================
-// 📝 PA-SWIPE REQUESTS
-// =========================
-match /paSwipeRequests/{requestId} {
-  // owner or admin can read
-  allow get, list: if isAdmin()
-    || (isSignedIn() && request.auth.uid == resource.data.userId);
+      // 👤 Member can read OWN receipts
+      allow get, list: if isSignedIn()
+        && request.auth.uid == resource.data.memberId;
 
-  // any signed-in user can create their OWN request
-  allow create: if isSignedIn()
-    && request.auth.uid == request.resource.data.userId;
+      // ❌ No updates or deletes (receipts are immutable)
+      allow update, delete: if false;
+    }
 
-  // only admin can approve/deny (update)
-  allow update: if isAdmin();
-  allow delete: if false;
-}
+    // =========================
+    // 🛍️ SHOP CONSENTS (Terms Acceptance)
+    // =========================
+    match /shopConsents/{userId} {
 
-// =========================
-// 💳 PA-SWIPE INSTALLMENTS
-// =========================
-match /paSwipeInstallments/{installmentId} {
-  allow get, list: if isAdmin()
-    || (isSignedIn() && request.auth.uid == resource.data.userId);
+      // User can read their own consent
+      allow get: if isSelf(userId);
 
-  allow create, update: if isAdmin();
-  allow delete: if false;
+      // User can create/update their own consent doc
+      allow create, update: if isSelf(userId);
 
-  match /schedule/{scheduleId} {
-    allow get, list: if isAdmin()
-      || (isSignedIn() && request.auth.uid == get(/databases/$(database)/documents/paSwipeInstallments/$(installmentId)).data.userId);
+      // Optional: admin can read all consents (for audit)
+      allow list: if isAdmin();
 
-    allow create, update: if isAdmin();
-    allow delete: if false;
-  }
-}
+      // No deletes
+      allow delete: if false;
+    }
 
-// =========================
-// 🧾 PA-SWIPE CONTRACTS
-// =========================
-match /paSwipeContracts/{contractId} {
-  allow get, list: if isAdmin()
-    || (isSignedIn() && request.auth.uid == resource.data.userId);
+    // =========================
+    // 🟦 PA-SWIPE PRODUCTS
+    // =========================
+    match /paSwipeProducts/{docId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
 
-  // created only by admin (during the approval transaction)
-  allow create: if isAdmin();
+    // =========================
+    // 📝 PA-SWIPE REQUESTS
+    // =========================
+    match /paSwipeRequests/{requestId} {
+      // owner or admin can read
+      allow get, list: if isAdmin()
+        || (isSignedIn() && request.auth.uid == resource.data.userId);
 
-  // buyer can ONLY flip status to accepted/declined — nothing else
-  allow update: if isSignedIn()
-    && request.auth.uid == resource.data.userId
-    && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status", "acceptedAt"]);
+      // any signed-in user can create their OWN request
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.userId;
 
-  allow delete: if false;
-}
+      // only admin can approve/deny (update)
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
 
-// =========================
-// 🛒 CREDIT CART REQUESTS
-// =========================
-match /creditCartRequests/{requestId} {
-  allow get, list: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
-  allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
-  allow update: if isAdmin();
-  allow delete: if false;
-}
+    // =========================
+    // 💳 PA-SWIPE INSTALLMENTS
+    // =========================
+    match /paSwipeInstallments/{installmentId} {
+      allow get, list: if isAdmin()
+        || (isSignedIn() && request.auth.uid == resource.data.userId);
 
-// =========================
-// 💳 CREDIT CART ACCOUNTS
-// =========================
-match /creditCartAccounts/{accountId} {
-  allow get, list: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
-  allow create, update: if isAdmin();
-  allow delete: if false;
+      allow create, update: if isAdmin();
+      allow delete: if false;
 
-  match /schedule/{scheduleId} {
-    allow get, list: if isAdmin()
-      || (isSignedIn() && request.auth.uid == get(/databases/$(database)/documents/creditCartAccounts/$(accountId)).data.userId);
-    allow create, update: if isAdmin();
-    allow delete: if false;
-  }
-}
+      match /schedule/{scheduleId} {
+        allow get, list: if isAdmin()
+          || (isSignedIn() && request.auth.uid == get(/databases/$(database)/documents/paSwipeInstallments/$(installmentId)).data.userId);
 
-// =========================
-// 🧾 CREDIT CART CONTRACTS
-// =========================
-match /creditCartContracts/{contractId} {
-  allow get, list: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
-  allow create: if isAdmin();
-  allow update: if isSignedIn()
-    && request.auth.uid == resource.data.userId
-    && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status", "acceptedAt"]);
-  allow delete: if false;
-}
+        allow create, update: if isAdmin();
+        allow delete: if false;
+      }
+    }
 
-// =========================
-// 🏪 PA-BENTA SHOPS
-// =========================
-match /paBentaShops/{shopId} {
-  allow get, list: if isAdmin()
-    || (isSignedIn() && request.auth.uid == resource.data.ownerId)
-    || (isSignedIn() && resource.data.status == "approved");
+    // Flat payment log written during each installment collection — this is
+    // what powers "My Receipts" for the borrower AND the Easy Installment
+    // profit ledger's writes. Had NO rule at all before (default-deny
+    // caught it), which broke both: My Receipts got stuck on "Loading..."
+    // forever, and every admin payment-collection transaction that touched
+    // it would have failed outright.
+    match /paSwipePayments/{paymentId} {
+      allow list: if isSignedIn();
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
 
-  allow create: if isSignedIn() && request.auth.uid == request.resource.data.ownerId;
+    // =========================
+    // 🤝 AFFILIATE PROGRAM (MLF Easy Installment only)
+    // =========================
 
-  allow update: if isAdmin()
-    || (isSignedIn()
-        && request.auth.uid == resource.data.ownerId
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["shopName", "shopDescription", "status", "totalListings", "totalViews"]));
+    // Ledger of commission events (first-half release, second-half accruals).
+    // Immutable — written only by admin (during approval / payment collection).
+    match /affiliateCommissions/{commissionId} {
+      allow get, list: if isAdmin()
+        || (isSignedIn() && request.auth.uid == resource.data.affiliateId);
 
-  allow delete: if false;
-}
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
 
-// =========================
-// 📦 PA-BENTA LISTINGS
-// =========================
-match /paBentaListings/{listingId} {
-  allow get, list: if isAdmin()
-    || (isSignedIn() && request.auth.uid == resource.data.ownerId)
-    || (isSignedIn() && resource.data.status == "approved");
+    // Record of actual cash paid out to an affiliate. Immutable.
+    match /affiliatePayouts/{payoutId} {
+      allow get, list: if isAdmin()
+        || (isSignedIn() && request.auth.uid == resource.data.affiliateId);
 
-  allow create: if isSignedIn() && request.auth.uid == request.resource.data.ownerId;
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
 
-  allow update: if isAdmin()
-    || (isSignedIn()
-        && request.auth.uid == resource.data.ownerId
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["price", "stockStatus", "description"]));
+    // Separate financial summary for MLF Easy Installment — owner-facing only,
+    // kept independent from coopFinancialSummary.
+    match /easyInstallmentFinancialSummary/{docId} {
+      allow get, list: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
 
-  allow delete: if false;
-}
+    // Same idea, for Marimar's Credit Cart — separate business, separate
+    // ledger, owner-facing only.
+    match /creditCartFinancialSummary/{docId} {
+      allow get, list: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // =========================
+    // 💵 SIDE-BUSINESS PROFIT WITHDRAWALS — owner cash-out log for MLF
+    // Easy Installment / Marimar's Credit Cart. Immutable once recorded
+    // (audit trail for money already taken out), owner/admin-only.
+    // =========================
+    match /easyInstallmentPayouts/{payoutId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    match /creditCartPayouts/{payoutId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // =========================
+    // 🧾 PA-SWIPE CONTRACTS
+    // =========================
+    match /paSwipeContracts/{contractId} {
+      allow get, list: if isAdmin()
+        || (isSignedIn() && request.auth.uid == resource.data.userId);
+
+      // created only by admin (during the approval transaction)
+      allow create: if isAdmin();
+
+      // buyer can ONLY flip status to accepted/declined — nothing else
+      allow update: if isSignedIn()
+        && request.auth.uid == resource.data.userId
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status", "acceptedAt"]);
+
+      allow delete: if false;
+    }
+
+    // =========================
+    // 🧾 COOP LOAN CONTRACTS
+    // =========================
+    match /loanContracts/{contractId} {
+      allow get, list: if isAdmin()
+        || (isSignedIn() && request.auth.uid == resource.data.userId);
+
+      // created only by admin (during the loan approval transaction, or
+      // by the one-time "Generate Missing Loan Contracts" backfill).
+      allow create: if isAdmin();
+
+      // No borrower-side accept/decline step for coop loans — the
+      // borrower already agreed via the checkbox at request time, so the
+      // contract is written as already "accepted". Admin-only updates.
+      allow update: if isAdmin();
+
+      allow delete: if false;
+    }
+
+    // =========================
+    // 🛒 CREDIT CART REQUESTS
+    // =========================
+    match /creditCartRequests/{requestId} {
+      allow get, list: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // =========================
+    // 💳 CREDIT CART ACCOUNTS
+    // =========================
+    match /creditCartAccounts/{accountId} {
+      allow get, list: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow create, update: if isAdmin();
+      allow delete: if false;
+
+      match /schedule/{scheduleId} {
+        allow get, list: if isAdmin()
+          || (isSignedIn() && request.auth.uid == get(/databases/$(database)/documents/creditCartAccounts/$(accountId)).data.userId);
+        allow create, update: if isAdmin();
+        allow delete: if false;
+      }
+    }
+
+    // Same gap as paSwipePayments above, same fix: flat payment log for
+    // Marimar's Credit Cart had no rule at all, breaking My Receipts and
+    // every payment-collection write into it.
+    match /creditCartPayments/{paymentId} {
+      allow list: if isSignedIn();
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // =========================
+    // 🧾 CREDIT CART CONTRACTS
+    // =========================
+    match /creditCartContracts/{contractId} {
+      allow get, list: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow create: if isAdmin();
+      allow update: if isSignedIn()
+        && request.auth.uid == resource.data.userId
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status", "acceptedAt"]);
+      allow delete: if false;
+    }
+
+    // =========================
+    // 🏪 PA-BENTA SHOPS
+    // =========================
+    match /paBentaShops/{shopId} {
+      allow get, list: if isAdmin()
+        || (isSignedIn() && request.auth.uid == resource.data.ownerId)
+        || (isSignedIn() && resource.data.status == "approved");
+
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.ownerId
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "member";
+
+      allow update: if isAdmin()
+        || (isSignedIn()
+            && request.auth.uid == resource.data.ownerId
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly(["shopName", "shopDescription", "status", "totalListings", "totalViews"]));
+
+      allow delete: if false;
+    }
+
+    // =========================
+    // 📦 PA-BENTA LISTINGS
+    // =========================
+    match /paBentaListings/{listingId} {
+      allow get, list: if isAdmin()
+        || (isSignedIn() && request.auth.uid == resource.data.ownerId)
+        || (isSignedIn() && resource.data.status == "approved");
+
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.ownerId;
+
+      allow update: if isAdmin()
+        || (isSignedIn()
+            && request.auth.uid == resource.data.ownerId
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly(["price", "stockStatus", "description"]))
+        || (isSignedIn()
+            && request.auth.uid == resource.data.ownerId
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status"])
+            && resource.data.status == "approved"
+            && request.resource.data.status == "archived")
+        || (isSignedIn()
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly(["viewCount"]));
+
+      allow delete: if isAdmin()
+          || (isSignedIn() && request.auth.uid == resource.data.ownerId);
+    }
+
+    // =========================
+    // ❤️ PA-BENTA WISHLIST
+    // =========================
+    match /paBentaWishlist/{docId} {
+      allow get, list: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow update: if false;
+    }
+
+    // =========================
+    // 🛡️ SECURITY GUARANTOR INVITES
+    // (backup/emergency contact required on loans & Easy Installment
+    // purchases over ₱10,000 — separate from the existing "effort pool"
+    // guarantorId mechanism on loanRequests/activeLoans.)
+    // The invite's document ID doubles as its activation code, so a
+    // guarantor who has the link can `get` their own invite before their
+    // account is linked to it; querying the whole collection (`list`) is
+    // still restricted to the borrower, the linked guarantor, and admin.
+    // =========================
+    match /securityGuarantorInvites/{inviteId} {
+
+      // Anyone who has the invite link (the doc ID) can open it — including
+      // someone not signed in yet, since that's exactly the state a brand
+      // new guarantor is in the first time they click the link. Safe
+      // because the doc ID is the unguessable capability token and `list`
+      // below stays restricted (no way to enumerate invites without it).
+      allow get: if true;
+
+      allow list: if isAdmin()
+        || (isSignedIn() && resource.data.borrowerUid == request.auth.uid)
+        || (isSignedIn() && resource.data.linkedUid == request.auth.uid);
+
+      // Only the borrower can create an invite, for themselves, unclaimed.
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.borrowerUid
+        && request.resource.data.status == "invited"
+        && request.resource.data.linkedUid == null;
+
+      allow update: if isAdmin()
+        // A guarantor claiming a still-unclaimed invite: may only attach
+        // themselves and flip status to "account_created" — nothing else.
+        || (isSignedIn()
+            && resource.data.linkedUid == null
+            && request.resource.data.linkedUid == request.auth.uid
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly(["linkedUid", "status", "updatedAt"])
+            && request.resource.data.status == "account_created")
+        // The linked guarantor submitting their own verification photos —
+        // can never self-approve (status can only land on "verification_pending").
+        || (isSignedIn()
+            && resource.data.linkedUid == request.auth.uid
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly(["identityVerification", "status", "updatedAt"])
+            && request.resource.data.status == "verification_pending");
+
+      allow delete: if false;
+    }
+
+    // =========================
+    // 💬 CHAT
+    // =========================
+    // Three thread types, one collection:
+    //  - "support": a member/borrower's private line to admin. Doc id
+    //    "<uid>_support", participantIds == [that uid] — any admin can
+    //    read/reply (isAdmin()), not just the one who last answered.
+    //  - "direct": member<->member (or borrower<->member) 1-on-1.
+    //    participantIds == the two uids, either can create/read/write.
+    //  - "broadcast": one shared group channel, fixed doc id
+    //    "broadcast-general" — every signed-in approved user can read
+    //    and post.
+    match /chatThreads/{threadId} {
+
+      // resource == null covers the "does this thread exist yet" check
+      // that ensureSupportThread/ensureDirectThread/ensureBroadcastThread
+      // do via getDoc() before creating — without it, reading a
+      // not-yet-created thread errors out (resource.data on null) and
+      // Firestore denies the whole request instead of just reporting
+      // "doesn't exist".
+      allow read: if isAdmin()
+        || (isSignedIn() && resource == null)
+        || (isSignedIn() && request.auth.uid in resource.data.participantIds)
+        || (isSignedIn() && resource.data.type == "broadcast");
+
+      allow create: if isSignedIn() && (
+        (request.resource.data.type == "support"
+          && request.resource.data.participantIds == [request.auth.uid]
+          && threadId == request.auth.uid + "_support")
+        || (request.resource.data.type == "direct"
+          && request.auth.uid in request.resource.data.participantIds
+          && request.resource.data.participantIds.size() == 2)
+        || (request.resource.data.type == "broadcast"
+          && threadId == "broadcast-general")
+      );
+
+      // Sending a message updates the thread's lastMessage* preview
+      // fields; reading it updates lastReadAt.<uid>. Either is fine for
+      // anyone who can already read this thread.
+      allow update: if isAdmin()
+        || (isSignedIn() && request.auth.uid in resource.data.participantIds)
+        || (isSignedIn() && resource.data.type == "broadcast");
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isAdmin()
+          || (isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chatThreads/$(threadId)).data.participantIds)
+          || (isSignedIn() && get(/databases/$(database)/documents/chatThreads/$(threadId)).data.type == "broadcast");
+
+        allow create: if isSignedIn()
+          && request.resource.data.senderId == request.auth.uid
+          && (
+            isAdmin()
+            || request.auth.uid in get(/databases/$(database)/documents/chatThreads/$(threadId)).data.participantIds
+            || get(/databases/$(database)/documents/chatThreads/$(threadId)).data.type == "broadcast"
+          );
+
+        // Editing/deleting your own message, or reacting to anyone's:
+        //  - the sender (or admin) may change anything except who sent it
+        //    or when (used for text edits and the soft-delete flag+blank).
+        //  - anyone else who can already read this thread may ONLY touch
+        //    their own entry in the `reactions` map — text/deleted must be
+        //    left exactly as they were, so a reaction can never edit or
+        //    erase someone else's message.
+        allow update: if isSignedIn()
+          && request.resource.data.senderId == resource.data.senderId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && (
+            isAdmin()
+            || request.auth.uid == resource.data.senderId
+            || (
+              (
+                request.auth.uid in get(/databases/$(database)/documents/chatThreads/$(threadId)).data.participantIds
+                || get(/databases/$(database)/documents/chatThreads/$(threadId)).data.type == "broadcast"
+              )
+              && request.resource.data.text == resource.data.text
+              && request.resource.data.deleted == resource.data.deleted
+            )
+          );
+
+        allow delete: if false;
+      }
+    }
 
     // =========================
     // 🚫 DEFAULT DENY

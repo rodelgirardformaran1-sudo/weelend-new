@@ -106,8 +106,28 @@ export async function createListing(params: {
   });
 }
 
-export async function getMyListings(shopId: string): Promise<PaBentaListing[]> {
-  const q = query(collection(db, LISTINGS_COL), where("shopId", "==", shopId), orderBy("createdAt", "desc"));
+export async function getMyListings(shopId: string, ownerId: string): Promise<PaBentaListing[]> {
+  const q = query(
+    collection(db, LISTINGS_COL),
+    where("shopId", "==", shopId),
+    where("ownerId", "==", ownerId),
+    orderBy("createdAt", "desc")
+  );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+}
+
+export async function deleteListing(listingId: string, shopId: string) {
+  await runTransaction(db, async (tx) => {
+    const shopRef = doc(db, SHOPS_COL, shopId);
+    const listingRef = doc(db, LISTINGS_COL, listingId);
+
+    const shopSnap = await tx.get(shopRef);
+    if (!shopSnap.exists()) throw new Error("Shop not found.");
+
+    tx.delete(listingRef);
+    tx.update(shopRef, {
+      totalListings: increment(-1),
+    });
+  });
 }

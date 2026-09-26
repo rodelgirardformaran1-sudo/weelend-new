@@ -7,6 +7,7 @@ import {
   requestLoan,
   getPotentialGuarantors,
   getActiveLoanForMember,
+  getLoanRequestForMember,
   getActiveGuaranteedLoansByGuarantor,
 } from "../services/loanService";
 import type { UserProfile } from "../type";
@@ -16,6 +17,20 @@ import { db } from "../firebaseConfig";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { showPage } from "../main";
 import { loadMemberLoanHistory } from "./memberHistory";
+import {
+  SECURITY_GUARANTOR_THRESHOLD,
+  requiresSecurityGuarantor,
+  buildGuarantorActivationLink,
+  type GuarantorInfoInput,
+} from "../services/securityGuarantorService";
+import { isUserIdentityVerified } from "../services/userService";
+import { renderProfileCompletionBanner } from "../utils/profileNudgeBanner";
+import { renderDueDateBanner } from "../utils/dueDateNudgeBanner";
+import { renderCreditScoreBanner } from "../utils/creditScoreNudgeBanner";
+import { getTrustFundExpenses } from "../services/trustFundService";
+import { getPayoutHistory } from "../services/payoutService";
+import { renderBorrowerQueueBanner, renderGuarantorQueueBanner } from "../utils/loanQueueBanner";
+import { buildAgreementAcceptance } from "../utils/loanAgreementModal";
 
 
 // =======================================================
@@ -39,6 +54,7 @@ let el: {
   limit?: HTMLElement | null;
   funds?: HTMLElement | null;
   monthlyShare?: HTMLElement | null;
+  creditScore?: HTMLElement | null;
   btnRequest?: HTMLElement | null;
   modalClose?: HTMLElement | null;
   submit?: HTMLElement | null;
@@ -46,6 +62,8 @@ let el: {
   coeFile?: HTMLInputElement | null;
   message?: HTMLElement | null;
 } | null = null;
+
+let currentMemberUid: string | null = null;
 
 // =======================================================
 // MAIN ENTRY
@@ -56,6 +74,7 @@ export async function initMemberDashboard(user: User | null) {
     return;
   }
 
+  currentMemberUid = user.uid;
   console.log("📌 Init Member Dashboard:", user.uid);
 
   const memberPage = document.getElementById("page-dashboard-member");
@@ -71,6 +90,7 @@ export async function initMemberDashboard(user: User | null) {
     limit: memberPage.querySelector<HTMLElement>("#member-loan-limit"),
     funds: memberPage.querySelector<HTMLElement>("#member-available-funds"),
     monthlyShare: memberPage.querySelector<HTMLElement>("#member-current-month-share"),
+    creditScore: memberPage.querySelector<HTMLElement>("#member-credit-score"),
 
     btnRequest: memberPage.querySelector<HTMLElement>("#member-request-loan-btn"),
     message: memberPage.querySelector<HTMLElement>("#member-message"),
@@ -88,6 +108,29 @@ export async function initMemberDashboard(user: User | null) {
   }
 
   console.log("🟡 MEMBER ELEMENTS (SCOPED & SAFE):", el);
+
+  // 🔔 Due-date nudge banner — non-blocking, fetched once per dashboard
+  // load (not on every profile snapshot) since it's its own Firestore
+  // read across the user's active loan(s) schedule.
+  renderDueDateBanner(
+    document.querySelector<HTMLElement>("#page-dashboard-member .dp-header"),
+    user.uid,
+    (loanId) => {
+      import("./memberLoanDetails").then((m) => m.loadMemberLoanDetails(loanId));
+    }
+  );
+
+  // 🎫 Loan-request queue banners — informs the member where their own
+  // pending request stands, and where any request(s) they guaranteed
+  // (effort-pool guarantorId) stand.
+  renderBorrowerQueueBanner(
+    document.querySelector<HTMLElement>("#page-dashboard-member .dp-header"),
+    user.uid
+  );
+  renderGuarantorQueueBanner(
+    document.querySelector<HTMLElement>("#page-dashboard-member .dp-header"),
+    user.uid
+  );
 
 
 // ===================================================
@@ -111,6 +154,32 @@ if (!snapshotsAttached) {
       `₱${(data.loanLimit ?? 0).toLocaleString()}`);
     el.monthlyShare && (el.monthlyShare.textContent =
       `₱${(data.monthlyShareCommitment ?? 0).toLocaleString()}`);
+
+    // 🏆 Credit score — starts at 100 (DEFAULT_CREDIT_SCORE), adjusted per
+    // coop-loan installment (late payment lowers it, on-time raises it —
+    // see services/creditEngine.ts). Same number that ranks loan requests.
+    const memberCreditScore = Number(data.creditScore ?? 100);
+    if (el.creditScore) {
+      el.creditScore.textContent = String(memberCreditScore);
+      el.creditScore.style.background =
+        memberCreditScore >= 90 ? "#e6f4ea" : memberCreditScore >= 70 ? "#fff3cd" : "#fdecea";
+      el.creditScore.style.color =
+        memberCreditScore >= 90 ? "#1e7e34" : memberCreditScore >= 70 ? "#7a5b00" : "#a12e21";
+    }
+    renderCreditScoreBanner(
+      document.querySelector<HTMLElement>("#page-dashboard-member .dp-header"),
+      memberCreditScore
+    );
+
+    // ⚠️ Nudge banner — missing emergency contact and/or ID verification
+    renderProfileCompletionBanner(
+      document.querySelector<HTMLElement>("#page-dashboard-member .dp-header"),
+      data,
+      () => {
+        showPage("page-member-profile");
+        import("./editProfile").then(m => m.initEditProfile("member"));
+      }
+    );
   });
 
 // ============ COOP POOLS → RUNNING PAYOUT ============
@@ -130,16 +199,40 @@ onSnapshot(doc(db, "coopFinancialSummary", "current_state"), async (snap) => {
 
     
 
-    // ==============================
-    // ✅ EFFORT POOL (BASED ON LOAN VOLUME)
-    // ==============================
-    let effortShare = 0;
-
     const memberSnap = await getDoc(doc(db, "users", user.uid));
     const memberData = memberSnap.data();
 
-    const memberVolume = Number(memberData?.lenderVolume ?? 0);
-    const totalVolume = Number(pools.totalLentVolume ?? 0);
+    // 🚪 A departed/inactive member (or a guarantor who has since left) is
+    // excluded from BOTH pools — they no longer share in the dividends,
+    // and their committed shares / lender volume are dropped from the
+    // denominators so active members split the full amount between them.
+    const viewerIsActive = memberData?.membershipStatus !== "inactive";
+
+    // Fetch all approved members ONCE, fresh each time, and use it for
+    // both the effort-pool and capital-pool denominators below.
+    const allMembersSnap = await getDocs(
+      query(
+        collection(db, "users"),
+        where("role", "==", "member"),
+        where("status", "==", "approved")
+      )
+    );
+
+    const activeMemberDocs = allMembersSnap.docs.filter(
+      d => d.data()?.membershipStatus !== "inactive"
+    );
+
+    // ==============================
+    // ✅ EFFORT POOL (BASED ON LOAN VOLUME) — active members only
+    // ==============================
+    let effortShare = 0;
+
+    const memberVolume = viewerIsActive ? Number(memberData?.lenderVolume ?? 0) : 0;
+
+    let totalVolume = 0;
+    activeMemberDocs.forEach(d => {
+      totalVolume += Number(d.data()?.lenderVolume ?? 0);
+    });
 
     if (totalVolume > 0) {
       effortShare = (pools.effortPool ?? 0) * (memberVolume / totalVolume);
@@ -148,25 +241,18 @@ onSnapshot(doc(db, "coopFinancialSummary", "current_state"), async (snap) => {
 // ==============================
 // ✅ CAPITAL POOL (BASED ON MONTHLY SHARE COMMITMENT — a fixed tier,
 // NOT cumulative shareBalance, which grows every time a member pays)
+// — active members only
 // ==============================
 
 const SHARE_VALUE = 1000;
 
-// Member's own committed shares (their fixed tier)
-const memberCommitment = Number(memberData?.monthlyShareCommitment ?? 0);
+// Member's own committed shares (their fixed tier) — zero if inactive
+const memberCommitment = viewerIsActive ? Number(memberData?.monthlyShareCommitment ?? 0) : 0;
 const memberShares = memberCommitment / SHARE_VALUE;
 
-// Total committed shares across ALL approved members (queried fresh each time)
-const allMembersSnap = await getDocs(
-  query(
-    collection(db, "users"),
-    where("role", "==", "member"),
-    where("status", "==", "approved")
-  )
-);
-
+// Total committed shares across ACTIVE approved members only
 let totalCommittedShares = 0;
-allMembersSnap.forEach(d => {
+activeMemberDocs.forEach(d => {
   const commitment = Number(d.data()?.monthlyShareCommitment ?? 0);
   totalCommittedShares += commitment / SHARE_VALUE;
 });
@@ -348,6 +434,13 @@ monSlider.value = "1";
 
     totalPreview &&
       (totalPreview.textContent = `₱${total.toLocaleString()}`);
+
+    // 🛡️ Show/hide the security guarantor section as the slider crosses
+    // the ₱10,000 threshold.
+    const guarantorSection = document.getElementById("loan-security-guarantor-section");
+    if (guarantorSection) {
+      guarantorSection.style.display = requiresSecurityGuarantor(amount) ? "block" : "none";
+    }
   }
 
     amtSlider.addEventListener("input", refreshPreview);
@@ -455,6 +548,31 @@ async function openLoanModal(user: User) {
   const modal = getLoanModal();
   if (!modal) return;
 
+  // 🛡️ Don't let a member open a new loan request while they already
+  // have an active (unpaid) loan or an existing request still awaiting
+  // admin approval — otherwise they can stack multiple concurrent
+  // requests/loans, which nothing downstream expects.
+  try {
+    const [existingActiveLoan, existingPendingRequest] = await Promise.all([
+      getActiveLoanForMember(user.uid),
+      getLoanRequestForMember(user.uid),
+    ]);
+
+    if (existingActiveLoan) {
+      showMessage("⚠️ You already have an active loan. Please finish paying it off before requesting a new one.");
+      return;
+    }
+
+    if (existingPendingRequest) {
+      showMessage("⚠️ You already have a loan request awaiting admin approval. Please wait for it to be processed before submitting another.");
+      return;
+    }
+  } catch (err) {
+    console.error("❌ Failed checking existing loan/request before opening loan modal:", err);
+    // Fail open rather than blocking a legitimate request over a lookup glitch —
+    // the request-time checks elsewhere still apply.
+  }
+
   modal.classList.add("active");
 
   // 🔑 Always reload guarantors when opening
@@ -497,6 +615,57 @@ function attachMemberEvents(user: User) {
   el.modalClose?.addEventListener("click", closeLoanModal);
 
   // ----------------------------
+  // 🙋 Refer someone for a loan (no account yet)
+  // ----------------------------
+  const referBtn = document.getElementById("member-refer-loan-btn");
+  const referPanel = document.getElementById("member-refer-loan-panel");
+  const referSubmitBtn = document.getElementById("refer-loan-submit-btn");
+  const referMsgEl = document.getElementById("refer-loan-message");
+
+  referBtn?.addEventListener("click", () => {
+    if (!referPanel) return;
+    referPanel.style.display = referPanel.style.display === "none" ? "block" : "none";
+  });
+
+  referSubmitBtn?.addEventListener("click", async () => {
+    if (!referMsgEl) return;
+    referMsgEl.textContent = "";
+
+    const nameInput = document.getElementById("refer-loan-name") as HTMLInputElement | null;
+    const amountInput = document.getElementById("refer-loan-amount") as HTMLInputElement | null;
+    const termsInput = document.getElementById("refer-loan-terms") as HTMLInputElement | null;
+    const purposeInput = document.getElementById("refer-loan-purpose") as HTMLInputElement | null;
+
+    const manualName = nameInput?.value.trim() || "";
+    const amount = Number(amountInput?.value || 0);
+    const termsMonths = Number(termsInput?.value || 1);
+    const purpose = purposeInput?.value.trim() || "";
+
+    if (!manualName) { referMsgEl.textContent = "⚠️ Please enter the person's name."; return; }
+    if (!amount || amount <= 0) { referMsgEl.textContent = "⚠️ Please enter a valid amount."; return; }
+    if (!purpose) { referMsgEl.textContent = "⚠️ Please enter the loan's purpose."; return; }
+
+    (referSubmitBtn as HTMLButtonElement).setAttribute("disabled", "true");
+    referMsgEl.textContent = "Submitting...";
+    try {
+      const { memberReferLoanRequest } = await import("../services/loanService");
+      await memberReferLoanRequest({ manualName, amount, purpose, termsMonths });
+      referMsgEl.textContent = `✅ ${manualName} has been added to the queue. You're recorded as their guarantor.`;
+      if (nameInput) nameInput.value = "";
+      if (amountInput) amountInput.value = "";
+      if (termsInput) termsInput.value = "1";
+      if (purposeInput) purposeInput.value = "";
+      setTimeout(() => {
+        if (referPanel) referPanel.style.display = "none";
+      }, 2000);
+    } catch (err: any) {
+      referMsgEl.textContent = `❌ ${err.message || "Failed to submit referral."}`;
+    } finally {
+      (referSubmitBtn as HTMLButtonElement).removeAttribute("disabled");
+    }
+  });
+
+  // ----------------------------
   // File uploads
   // ----------------------------
   el.idFile?.addEventListener("change", (e: any) => {
@@ -529,8 +698,25 @@ function attachMemberEvents(user: User) {
     closeAgreementModal();
   });
 
+  // 📄 Required "I agree" checkbox — the confirm button stays disabled
+  // until it's checked, so there's no way to submit without it.
+  const agreementCheckbox = document.getElementById(
+    "loan-agreement-checkbox"
+  ) as HTMLInputElement | null;
+
+  agreementCheckbox?.addEventListener("change", () => {
+    if (agreementConfirmBtn) {
+      (agreementConfirmBtn as HTMLButtonElement).disabled = !agreementCheckbox.checked;
+    }
+  });
+
   agreementConfirmBtn?.addEventListener("click", async (e) => {
     e.preventDefault();
+
+    if (!agreementCheckbox?.checked) {
+      return showMessage("⚠️ Please check the box confirming you agree to the terms before submitting.", "red");
+    }
+
     await submitLoan(user, e);
   });
 }
@@ -652,6 +838,14 @@ function openAgreementModal(summaryHtml: string) {
   if (!modal || !summaryEl) return;
 
   summaryEl.innerHTML = summaryHtml;
+
+  // 📄 Reset the "I agree" checkbox + confirm button every time the modal
+  // opens, so a previous acceptance can never silently carry over.
+  const checkbox = document.getElementById("loan-agreement-checkbox") as HTMLInputElement | null;
+  const confirmBtn = document.getElementById("loan-agreement-confirm-btn") as HTMLButtonElement | null;
+  if (checkbox) checkbox.checked = false;
+  if (confirmBtn) confirmBtn.disabled = true;
+
   modal.classList.add("active");
 }
 
@@ -667,6 +861,15 @@ function closeAgreementModal() {
 
 async function submitLoan(user: User, e: Event) {
   e.preventDefault();
+
+  // 🪪 Require an admin-approved identity verification before a loan can
+  // even be submitted.
+  if (!(await isUserIdentityVerified(user.uid))) {
+    return showMessage(
+      "⚠️ Please complete your Identity Verification in Edit Profile (and wait for admin approval) before requesting a loan.",
+      "red"
+    );
+  }
 
   // 🔍 Query modal inputs ON DEMAND (SPA-safe)
 const purposeSelect =
@@ -703,6 +906,56 @@ const schedule = scheduleSelect.value;
   let idUrl: string | undefined;
   let coeUrl: string | undefined;
 
+  // 🛡️ Security guarantor info (required over ₱10,000)
+  let securityGuarantorInfo: GuarantorInfoInput | undefined;
+
+  if (requiresSecurityGuarantor(amount)) {
+    const nameInput = document.getElementById("loan-guarantor-name") as HTMLInputElement | null;
+    const relInput = document.getElementById("loan-guarantor-relationship") as HTMLInputElement | null;
+    const phoneInput = document.getElementById("loan-guarantor-phone") as HTMLInputElement | null;
+    const emailInput = document.getElementById("loan-guarantor-email") as HTMLInputElement | null;
+    const streetInput = document.getElementById("loan-guarantor-home-street") as HTMLInputElement | null;
+    const barangayInput = document.getElementById("loan-guarantor-home-barangay") as HTMLInputElement | null;
+    const cityInput = document.getElementById("loan-guarantor-home-city") as HTMLInputElement | null;
+    const provinceInput = document.getElementById("loan-guarantor-home-province") as HTMLInputElement | null;
+    const zipInput = document.getElementById("loan-guarantor-home-zip") as HTMLInputElement | null;
+
+    const name = nameInput?.value.trim() || "";
+    const relationship = relInput?.value.trim() || "";
+    const phone = phoneInput?.value.trim() || "";
+    const email = emailInput?.value.trim() || "";
+    const street = streetInput?.value.trim() || "";
+    const barangay = barangayInput?.value.trim() || "";
+    const city = cityInput?.value.trim() || "";
+    const province = provinceInput?.value.trim() || "";
+    const zip = zipInput?.value.trim() || "";
+
+    if (!name || !relationship || !phone || !email || !street || !barangay || !city || !province || !zip) {
+      return showMessage(
+        `⚠️ Loans over ₱${SECURITY_GUARANTOR_THRESHOLD.toLocaleString()} require complete security guarantor details.`,
+        "red"
+      );
+    }
+
+    // 🛡️ The Security Guarantor must be a separate, reachable third party
+    // (unlike the effort-pool guarantorId above, which is allowed to be
+    // the borrower themself). Block self-selection here.
+    if (user.email && email.toLowerCase() === user.email.toLowerCase()) {
+      return showMessage(
+        "⚠️ Your security guarantor must be someone other than yourself — please provide a family member or other reachable contact.",
+        "red"
+      );
+    }
+
+    securityGuarantorInfo = {
+      name,
+      relationship,
+      phone,
+      email,
+      homeAddress: { street, barangay, city, province, zip },
+    };
+  }
+
     try {
     showMessage("⏳ Submitting loan request...", "blue");
 
@@ -725,22 +978,47 @@ const schedule = scheduleSelect.value;
       );
     }
 
-    await requestLoan(
+    // 📄 Build the persisted proof-of-agreement record from the exact
+    // terms shown in the agreement modal the user just checked and
+    // confirmed.
+    const agreementSummary = buildLoanAgreementSummary(amount, termsMonths, schedule);
+    const agreementAcceptance = buildAgreementAcceptance("coopLoan", {
+      amount: agreementSummary.amount,
+      monthlyInterestRate: agreementSummary.monthlyInterestRate,
+      totalInterest: agreementSummary.totalInterest,
+      totalPayable: agreementSummary.totalPayable,
+      termsMonths: agreementSummary.termsMonths,
+      schedule: agreementSummary.schedule,
+      lateFee: agreementSummary.lateFee,
+      escalatedLateFee: agreementSummary.escalatedLateFee,
+    });
+
+    const { securityGuarantorInviteId } = await requestLoan(
       amount,
       purpose,
       termsMonths,
       guarantorId,
       schedule,
       idUrl,
-      coeUrl
+      coeUrl,
+      securityGuarantorInfo,
+      agreementAcceptance
     );
 
-    showMessage("✅ Loan request submitted. Waiting for admin approval.", "blue");
+    if (securityGuarantorInviteId) {
+      const link = buildGuarantorActivationLink(securityGuarantorInviteId);
+      showMessage(
+        `✅ Loan request submitted. Share this link with your security guarantor so they can verify: ${link}`,
+        "blue"
+      );
+    } else {
+      showMessage("✅ Loan request submitted. Waiting for admin approval.", "blue");
+    }
 closeAgreementModal();
 
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
-    showMessage("❌ Error submitting loan request.", "red");
+    showMessage(err?.message || "❌ Error submitting loan request.", "red");
   }
 }
 
@@ -839,5 +1117,115 @@ case "profile":
     });
 }
 
+// =======================================================
+// 🏦 TRUST FUND EXPENSE TRANSPARENCY (read-only, toggled inline)
+// =======================================================
+let trustFundExpensesLoaded = false;
+const viewTrustFundBtn = document.getElementById("member-view-trust-fund-expenses-btn");
+const trustFundExpensesList = document.getElementById("member-trust-fund-expenses-list");
 
+viewTrustFundBtn?.addEventListener("click", async () => {
+  if (!trustFundExpensesList) return;
 
+  const isOpen = trustFundExpensesList.style.display !== "none";
+  if (isOpen) {
+    trustFundExpensesList.style.display = "none";
+    viewTrustFundBtn.textContent = "🧾 View Trust Fund Expenses";
+    return;
+  }
+
+  trustFundExpensesList.style.display = "block";
+  viewTrustFundBtn.textContent = "🧾 Hide Trust Fund Expenses";
+
+  if (trustFundExpensesLoaded) return;
+  trustFundExpensesLoaded = true;
+
+  trustFundExpensesList.innerHTML = "<p class=\"muted\" style=\"font-size:13px;\">Loading...</p>";
+
+  try {
+    const expenses = await getTrustFundExpenses();
+
+    if (expenses.length === 0) {
+      trustFundExpensesList.innerHTML = "<p class=\"muted\" style=\"font-size:13px;\">No expenses recorded yet.</p>";
+      return;
+    }
+
+    const totalSpent = expenses.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
+
+    trustFundExpensesList.innerHTML = `
+      <p class="muted" style="font-size:12px;margin-bottom:8px;">Total liquidated: ₱${totalSpent.toLocaleString()} across ${expenses.length} expense${expenses.length === 1 ? "" : "s"}.</p>
+      ${expenses.map((e: any) => {
+        const dateStr = e.expenseDate?.toDate ? e.expenseDate.toDate().toLocaleDateString() : "—";
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:8px 10px;border:1px solid #eee;border-radius:8px;margin-bottom:6px;font-size:13px;">
+            <div>
+              <strong>${e.description}</strong>
+              <div class="muted" style="font-size:11px;">${e.category} · ${dateStr}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <strong>₱${Number(e.amount ?? 0).toLocaleString()}</strong>
+              ${e.receiptUrl ? `<a href="${e.receiptUrl}" target="_blank">🧾 Receipt</a>` : ""}
+            </div>
+          </div>
+        `;
+      }).join("")}
+    `;
+  } catch (err) {
+    console.error("❌ Failed to load trust fund expenses:", err);
+    trustFundExpensesList.innerHTML = "<p class=\"muted\" style=\"font-size:13px;\">Failed to load. Please try again.</p>";
+  }
+});
+
+// =======================================================
+// 🎉 PAYOUT HISTORY TRANSPARENCY (read-only, toggled inline)
+// =======================================================
+let payoutHistoryLoaded = false;
+const viewPayoutHistoryBtn = document.getElementById("member-view-payout-history-btn");
+const payoutHistoryList = document.getElementById("member-payout-history-list");
+
+viewPayoutHistoryBtn?.addEventListener("click", async () => {
+  if (!payoutHistoryList) return;
+
+  const isOpen = payoutHistoryList.style.display !== "none";
+  if (isOpen) {
+    payoutHistoryList.style.display = "none";
+    viewPayoutHistoryBtn.textContent = "🎉 View Past Payouts";
+    return;
+  }
+
+  payoutHistoryList.style.display = "block";
+  viewPayoutHistoryBtn.textContent = "🎉 Hide Past Payouts";
+
+  if (payoutHistoryLoaded) return;
+  payoutHistoryLoaded = true;
+
+  payoutHistoryList.innerHTML = "<p class=\"muted\" style=\"font-size:13px;\">Loading...</p>";
+
+  try {
+    const history = await getPayoutHistory();
+    const myUid = currentMemberUid;
+
+    if (history.length === 0) {
+      payoutHistoryList.innerHTML = "<p class=\"muted\" style=\"font-size:13px;\">No payouts released yet.</p>";
+      return;
+    }
+
+    payoutHistoryList.innerHTML = history.map((p: any) => {
+      const releasedStr = p.releasedAt?.toDate ? p.releasedAt.toDate().toLocaleDateString() : "";
+      const mine = (p.members ?? []).find((m: any) => m.userId === myUid);
+      return `
+        <div style="padding:8px 10px;border:1px solid #eee;border-radius:8px;margin-bottom:6px;font-size:13px;">
+          <strong>${p.fiscalYearLabel}</strong>
+          <span class="muted" style="font-size:11px;"> — ${releasedStr}</span>
+          <div style="margin-top:4px;">
+            Grand Total Paid Out: ₱${Number(p.grandTotal ?? 0).toLocaleString()}
+            ${mine ? `<br/><strong>Your Payout: ₱${Number(mine.totalPayout ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong> (Share Balance ₱${Number(mine.shareBalanceReturned ?? 0).toLocaleString()} + Capital ₱${Number(mine.capitalShare ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} + Effort ₱${Number(mine.effortShare ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })})` : ""}
+          </div>
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    console.error("❌ Failed to load payout history:", err);
+    payoutHistoryList.innerHTML = "<p class=\"muted\" style=\"font-size:13px;\">Failed to load. Please try again.</p>";
+  }
+});
